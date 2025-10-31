@@ -23,7 +23,12 @@ const app = express();
 
 app.use(express.json());
 
-// ADD YOUR WORK HERE
+require('dotenv').config();
+const SECRET_KEY = process.env.SECRET_KEY;
+const jwt = require('jsonwebtoken');
+
+const userRoutes = require("./routes/users");
+app.use("/users", userRoutes);
 
 
 const server = app.listen(port, () => {

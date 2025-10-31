@@ -28,10 +28,14 @@ enum PromotionType {
 }
 
 model User {
-  id          Int      @id @default(autoincrement())
-  username    String   @unique
-  password    String
-  email       String
-  role        RoleType
-  is_verified Boolean
+  id         Int      @id @default(autoincrement())
+  utorid     String   @unique
+  username   String
+  password   String
+  email      String   @unique
+  role       RoleType
+  verified   Boolean  @default(false)
+  activated  Boolean  @default(false)
+  expiresAt  DateTime
+  resetToken String
 }
