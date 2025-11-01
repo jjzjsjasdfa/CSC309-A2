@@ -28,14 +28,32 @@ enum PromotionType {
 }
 
 model User {
-  id         Int      @id @default(autoincrement())
-  utorid     String   @unique
-  username   String
-  password   String
-  email      String   @unique
+  id         Int         @id @default(autoincrement())
+  utorid     String      @unique
+  password   String?
+  name       String
+  email      String      @unique
+  birthday   DateTime?
   role       RoleType
-  verified   Boolean  @default(false)
-  activated  Boolean  @default(false)
+  points     Int         @default(0)
+  createdAt  DateTime    @default(now())
+  lastLogin  DateTime?
+  verified   Boolean     @default(false)
+  activated  Boolean     @default(false)
+  suspicious Boolean     @default(false)
   expiresAt  DateTime
   resetToken String
+  avatarUrl  String?
+  promotions Promotion[] @relation("UserPomotions")
+}
+
+model Promotion {
+  id          Int      @id @default(autoincrement())
+  name        String
+  minSpending Int?
+  rate        Int?
+  points      Int
+  users       User[]   @relation("UserPomotions")
+  available   Boolean  @default(false)
+  one_time    Boolean?
 }

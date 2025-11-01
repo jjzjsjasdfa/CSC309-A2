@@ -4,11 +4,10 @@
  *   node prisma/createsu.js clive123 clive.su@mail.utoronto.ca SuperUser123!
  */
 'use strict';
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('./prismaClient');
 const bcrypt = require('bcrypt');
-const prisma = new PrismaClient();
 async function main() {
-  const args = process.argv.slice(0, 3);
+  const args = process.argv.slice(2, 5);
 
   if (args.length !== 3) {
     console.error('Usage: node prisma/createsu.js <utorid> <email> <password>');
@@ -19,23 +18,25 @@ async function main() {
 
   // check if the user exists
   const existing = await prisma.user.findUnique({
-    where: { username: utorid },
+    where: { utorid: utorid },
   });
   if (existing) {
-    console.error(`User with username "${utorid}" already exists.`);
+    console.error(`User with utorid "${utorid}" already exists.`);
     process.exit(1);
   }
 
   // create superuser
   // use bcrypt to hash the password
-  const hashedPassword = await bcrypt.hash(password);
+  const hashedPassword = await bcrypt.hash(password, 10);
   const superuser = await prisma.user.create({
     data: {
-      username: utorid,
+      utorid: utorid,
+      name: "superuser",
       email: email,
       password: hashedPassword,
       role: 'superuser',
-      is_verified: true,
+      verified: true,
+      // activated: true
     },
   });
 

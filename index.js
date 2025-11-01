@@ -17,17 +17,17 @@ const port = (() => {
 
     return num;
 })();
+require('dotenv').config();
 
 const express = require("express");
 const app = express();
 
 app.use(express.json());
 
-require('dotenv').config();
 const SECRET_KEY = process.env.SECRET_KEY;
 const jwt = require('jsonwebtoken');
 
-const userRoutes = require("./routes/users");
+const userRoutes = require("./src/routes/userRoutes");
 app.use("/users", userRoutes);
 
 
