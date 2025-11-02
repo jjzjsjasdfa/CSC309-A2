@@ -13,6 +13,14 @@ const userRepository = {
     });
   },
 
+  async findMany(where, skip, limit){
+    return prisma.user.findMany({
+      where: where,
+      skip: skip,
+      take: limit,
+    });
+  },
+
   async findById(id){
     return prisma.user.findUnique({
       where: { id },
@@ -40,11 +48,10 @@ const userRepository = {
     });
   },
 
-  async findMany(where, skip, limit){
-    return prisma.user.findMany({
-      where: where,
-      skip: skip,
-      take: limit,
+  async updateUser(id, data){
+    return prisma.user.update({
+      where: { id },
+      data: data
     });
   }
 };
