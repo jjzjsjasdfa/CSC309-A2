@@ -1,20 +1,21 @@
 const express = require("express")
 const router = express.Router();
-const { authenticateToken, authorization, validateBodyPayload, validateQueryPayload, verifyUserId } = require('../middleware/middleware');
+const multer = require("multer");
+const upload = multer({ dest: 'uploads/avatars' });
+const { authenticateToken, authorization, validatePayload, verifyUserId } = require('../middleware/middleware');
 const userController = require("../controllers/userController");
 
-// "/users"
 router.route("/")
   .post(
     authenticateToken,
     authorization(["cashier", "manager", "superuser"]),
-    validateBodyPayload(["utorid", "name", "email"]),
+    validatePayload({ required: ["utorid", "name", "email"] }, "body"),
     userController.register
   )
   .get(
     authenticateToken,
     authorization(["manager", "superuser"]),
-    validateQueryPayload(["name", "role", "verified", "activated", "page", "limit"]),
+    validatePayload({ optional: ["name", "role", "verified", "activated", "page", "limit"] }, "query"),
     userController.getUsers
   )
   .all((req, res) => {
@@ -23,19 +24,19 @@ router.route("/")
   });
 
 
-// "/users/:userId"
 router.route("/:userId")
   .get(
     authenticateToken,
     authorization(["cashier", "manager", "superuser"]),
     verifyUserId,
-    validateQueryPayload([]),
+    validatePayload({}, "query"),
     userController.getUser
   )
   .patch(
     authenticateToken,
     authorization(["manager", "superuser"]),
     verifyUserId,
+    validatePayload({ optional: ["email", "verified", "suspicious", "role"] }, "body"),
     userController.updateUser
   )
   .all((req, res) => {
@@ -43,5 +44,27 @@ router.route("/:userId")
     res.status(405).json({ error: "Method not allowed" });
   });
 
-router.post("/", (req, res) => res.send("User created"));
+router.route("/users/me")
+  .patch(
+    authenticateToken,
+    authorization(["regular", "cashier", "manager", "superuser"]),
+    validatePayload({ optional: ["name", "email", "birthday", "avatar"] }, "body"),
+    upload.single('avatar'),
+    userController.updateMyself
+  )
+  .get(
+    authenticateToken,
+    authorization(["regular", "cashier", "manager", "superuser"]),
+    validatePayload({}, "query"),
+    userController.getMyself
+  );
+
+router.patch(
+  "/user/me/password",
+  authenticateToken,
+  authorization(["regular", "cashier", "manager", "superuser"]),
+  validatePayload({ required: ["old", "new"] }, "body"),
+  userController.updateMyPassword
+)
+
 module.exports = router;

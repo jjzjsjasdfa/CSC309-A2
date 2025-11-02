@@ -1,13 +1,14 @@
 const userService = require("../services/userService");
+const bcrypt = require('bcrypt');
 
 const userController = {
   async register(req, res) {
     try {
-      const { utorid, name, email } = req.body;
-      const newUser = await userService.registerRegularUser(utorid, name, email);
-      const { id, utorid: u, name: n, email: e, verified, expiresAt, resetToken } = newUser;
+      const { utorid: u, name: n, email: e } = req.body;
+      const newUser = await userService.registerRegularUser(u, n, e);
+      const { id, utorid, name, email, verified, expiresAt, resetToken } = newUser;
 
-      res.status(201).json({ id, utorid: u, name: n, email: e, verified, expiresAt, resetToken });
+      res.status(201).json({ id, utorid, name, email, verified, expiresAt, resetToken });
     } catch (error) {
       res.status(409).json({ error: error.message });
     }
@@ -20,15 +21,8 @@ const userController = {
         if(req.query[key] !== undefined){
           if(key === "verified" || key === "activated"){
             where[key] = req.query[key] === "true";
-          }else if(key === "page"){
-            page = Number(req.query[key]);
-          }else if(key === "limit"){
-            if(!/^[0-9]+$/.test(req.query[key])){
-              res.status(400).json({ error: "Payload field that is supposed to be number is not number" });
-            }
-            else{
-              limit = Number(req.query[key]);
-            }
+          }else if(key === "page" || key === "limit"){
+            page = parseInt(req.query[key], 10);
           }
         }
         else {
@@ -43,7 +37,7 @@ const userController = {
       }
 
       const skip = (page - 1) * limit;
-      const users = await userService.getUsers(where, limit, skip);
+      const users = await userService.getUsers(where, skip, limit);
       const results = users.map(
         ({id, utorid, name, email, birthday, role, points, createdAt, lastLogin, verified, avatarUrl}) =>
           ({id, utorid, name, email, birthday, role, points, createdAt, lastLogin, verified, avatarUrl}
@@ -51,12 +45,12 @@ const userController = {
       );
       res.status(200).json({
         count: users.length,
-        results: users,
+        results: results,
       });
   },
 
   async getUser(req, res) {
-    const id = req.params.userId;
+    const id = parseInt(req.params.userId, 10);
     let user;
 
     // cashier
@@ -74,63 +68,92 @@ const userController = {
   },
 
   async updateUser(req, res) {
-    const user = req.user;
+    const id = parseInt(req.params.userId, 10);
     const { email, verified, suspicious, role } = req.body;
-
     const updateData = {};
 
     if (email !== undefined){
       updateData.email = email;
     }
 
-    if (verified !== undefined && verified === false) {
-      updateData.verified = true;
+    // don't care when verified === false
+    if (verified !== undefined && verified === true) {
+      updateData.verified = verified;
     }
 
     if (suspicious !== undefined) {
-      // Only allow setting suspicious if role is not being promoted to cashier
-      if (role === "cashier" && suspicious === true) {
-        return res.status(400).json({ error: "Cannot make a cashier suspicious" });
-      }
       updateData.suspicious = suspicious;
     }
 
     if (role !== undefined) {
-      // Role restrictions
-      const requesterRole = req.requesterRole; // e.g., set in authenticate middleware
-      const allowedRoles = requesterRole === "manager" ? ["regular", "cashier"]
-                          : requesterRole === "superuser" ? ["regular", "cashier", "manager", "superuser"]
-                          : [];
+      if (role === "cashier" && user.suspicious === true) {
+        return res.status(400).json({ error: "A suspicious user cannot be promoted to cashier" });
+      }
+      const allowedRoles = req.user.role === "manager" ? ["regular", "cashier"] : ["regular", "cashier", "manager", "superuser"]
 
       if (!allowedRoles.includes(role)) {
-        return res.status(403).json({ error: "Role change not allowed" });
+        return res.status(403).json({ error: `You are not allowed to promote someone to ${role}` });
       }
 
       updateData.role = role;
-
-      // Promote to cashier -> set suspicious to false if not explicitly provided
-      if (role === "cashier" && suspicious === undefined) {
-        updateData.suspicious = false;
-      }
     }
 
     if (Object.keys(updateData).length === 0) {
-      return res.status(400).json({ error: "No valid fields provided for update" });
+      return res.status(400).json({ error: "No update fields provided" });
     }
 
-    try {
-      const updatedUser = await userService.updateUser(user.id, updateData);
-
-      // Return only updated fields + id/utorid/name
-      const response = { id: updatedUser.id, utorid: updatedUser.utorid, name: updatedUser.name };
-      for (const key of Object.keys(updateData)) {
-        response[key] = updatedUser[key];
-      }
-
-      res.status(200).json(response);
-    } catch (err) {
-      res.status(500).json({ error: "Failed to update user", details: err.message });
+    const updatedUser = await userService.updateUser(id, updateData);
+    const response = { id: updatedUser.id, utorid: updatedUser.utorid, name: updatedUser.name };
+    for (const key of Object.keys(updateData)) {
+      response[key] = updatedUser[key];
     }
+
+    res.status(200).json(response);
+  },
+
+  async updateMyself(req, res){
+    const updateData = { ...req.body };
+
+    if (req.file) {
+      updateData.avatarUrl = '/uploads/avatars/' + req.file.filename;
+    }
+
+    const updatedUser = await userService.updateUser(req.user.id, updateData);
+    const response = {
+      id: updatedUser.id,
+      utorid: updatedUser.utorid,
+      name: updatedUser.name,
+      email: updatedUser.email,
+      birthday: updatedUser.birthday,
+      role: updatedUser.role,
+      points: updatedUser.points,
+      createdAt: updatedUser.createdAt,
+      lastLogin: updatedUser.lastLogin,
+      verified: updatedUser.verified,
+      avatarUrl: updatedUser.avatarUrl
+    };
+
+    res.status(200).json(response);
+  },
+
+  async getMyself(req, res){
+    const myself = await userService.getUserWithAllPromo(req.user.id);
+    const { id, utorid, name, email, birthday, role, points, createdAt, lastLogin, verified, avatarUrl, promotions } = myself
+    res.status(200).json({ id, utorid, name, email, birthday, role, points, createdAt, lastLogin, verified, avatarUrl, promotions });
+  },
+
+  async updateMyPassword(req, res){
+    const myself = await userService.getUserWithAllPromo(req.user.id);
+
+    // see if old matches
+    const isMatch = await bcrypt.compare(myself.password, req.body.old);
+    if(!isMatch){
+      res.status(403).json({ error: "the provided current password is incorrect" })
+    }
+
+    const hashedPassword = await bcrypt.hash(req.body["new"], 10);
+    const updated = await userService.updateUser(req.user.id, { password: hashedPassword });
+    res.status(200).json({ message: "password updated" });
   }
 };
 

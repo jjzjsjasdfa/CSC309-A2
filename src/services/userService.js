@@ -9,7 +9,7 @@ const userService = {
     const resetToken = uuidv4();
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
-    return await userRepository.createUser(utorid, name, email, resetToken, expiresAt);
+    return await userRepository.createRegularUser(utorid, name, email, resetToken, expiresAt);
   },
 
   async getUsers(where, skip, limit){
@@ -26,6 +26,10 @@ const userService = {
 
   async getUserWithAllPromo(id){
     return await userRepository.findByIdIncludeAllPromo(id);
+  },
+
+  async updateUser(id, data){
+    return await userRepository.updateUser(id, data);
   }
 };
 

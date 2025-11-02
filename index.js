@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 'use strict';
+require('dotenv').config();
 
 const port = (() => {
     const args = process.argv;
@@ -17,15 +18,11 @@ const port = (() => {
 
     return num;
 })();
-require('dotenv').config();
 
 const express = require("express");
 const app = express();
 
 app.use(express.json());
-
-const SECRET_KEY = process.env.SECRET_KEY;
-const jwt = require('jsonwebtoken');
 
 const userRoutes = require("./src/routes/userRoutes");
 app.use("/users", userRoutes);
