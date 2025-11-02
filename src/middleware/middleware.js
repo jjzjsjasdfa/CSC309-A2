@@ -3,24 +3,44 @@ const jwt = require('jsonwebtoken');
 const userService = require("../services/userService");
 
 function validateTypeAndValue(reqField, res){
-  for (const key of reqField) {
-      switch(key){
-        case "utorid":
-          if(!/^[a-zA-Z0-9]{7,8}$/.test(reqField.key)){
-            res.status(400).json({error: "utorid should be alphanumeric, 7-8 characters"});
-          }
-        case "name" && !/^.{1,50}$/.test(reqField.name)) {
-        res.status(400).json({error: "name should be 1-50 characters"});
-      } else if (key === "email" && !/^.+@mail\.utoronto\.ca$/.test(reqField.email)) {
-        res.status(400).json({error: "email should be valid University of Toronto email in the format name@mail.utoronto.ca"});
-      } else if (key === "verified" && reqField.verified !== "true" && reqField.verified !== "false") {
-        res.status(400).json({error: "Payload field that is supposed to be boolean is not boolean"});
-      } else if (key === "activated" && req.body.verified !== "true" && req.body.verified !== "false") {
-        res.status(400).json({error: "Payload field that is supposed to be boolean is not boolean"});
-      } else if (key === "page" && !!/^[0-9]+$/.test(req.query[key])) {
-        res.status(400).json({error: "Payload field that is supposed to be boolean is not boolean"});
-      }
+  for (const key in reqField) {
+    const value = reqField[key];
+
+    switch (key) {
+      case "utorid":
+        if (!/^[a-zA-Z0-9]{7,8}$/.test(value)) {
+          return res.status(400).json({error: `${key} should be alphanumeric, 7-8 characters`});
+        }
+        break;
+
+      case "name":
+        if (!/^.{1,50}$/.test(value)) {
+          return res.status(400).json({error: `${key} should be 1-50 characters`});
+        }
+        break;
+
+      case "email":
+        if (!/^.+@mail\.utoronto\.ca$/.test(value)) {
+          return res.status(400).json({error: `${key} should be valid University of Toronto email in the format name@mail.utoronto.ca`});
+        }
+        break;
+
+      case "verified":
+      case "activated":
+        if (typeof value === "boolean") break;
+        if (!/^(true|false)$/.test(value)) {
+          return res.status(400).json({error: `${key} field should be boolean`});
+        }
+        break;
+
+      case "page":
+        if (!/^[0-9]+$/.test(value)) {
+          return res.status(400).json({error: `${key} field should be integer`});
+        }
+        break;
     }
+  }
+  return null;
 }
 
 // JWT authentication middleware from week 7 code
@@ -67,34 +87,34 @@ function validateBodyPayload(expectedFields) {
       return res.status(400).json({error: `Missing fields: ${missing.join(', ')}`});
     }
 
+    // Check for extra fields
     const extra = actualFields.filter(f => !expectedFields.includes(f));
     if (extra.length > 0) {
       return res.status(400).json({error: `Extra fields: ${extra.join(', ')}`});
     }
 
-    validateTypeAndValue(req.body);
+    const error = validateTypeAndValue(req.body, res);
+    if (error) return;
+
     next();
   };
 }
 
 // payload verification
-// Ensure 1. all required fields exist 2. no extra fields
+// Since the payloads are optional, just need to ensure no extra fields
 function validateQueryPayload(expectedFields) {
   return (req, res, next) => {
     const actualFields = Object.keys(req.body);
 
-    // Check for missing fields
-    const missing = expectedFields.filter(f => !actualFields.includes(f));
-    if (missing.length > 0 && required) {
-      return res.status(400).json({error: `Missing fields: ${missing.join(', ')}`});
-    }
-
+    // Check for extra fields
     const extra = actualFields.filter(f => !expectedFields.includes(f));
     if (extra.length > 0) {
       return res.status(400).json({error: `Extra fields: ${extra.join(', ')}`});
     }
 
-    validateTypeAndValue(req.query);
+    const error = validateTypeAndValue(req.query, res);
+    if (error) return;
+
     next();
   };
 }
