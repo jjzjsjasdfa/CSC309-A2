@@ -51,11 +51,16 @@ const userController = {
       return res.status(400).json({ error: "page and limit must be positive integers" });
     }
 
-    const skip = (page - 1) * limit;
-    const users = await userService.getUsers(where, skip, limit);
-
+    let users = await userService.getUsers(where);
+    const count = users.length;
     if(!users){
       return res.status(200).json({ message: "no users found" });
+    }
+
+    const skip = (page - 1) * limit;
+    users = await userService.getUsersWithSkipAndLimit(where, skip, limit);
+    if(!users){
+      return res.status(200).json({ message: "no users in this page" });
     }
 
     const results = users.map(
@@ -64,7 +69,7 @@ const userController = {
       )
     );
     return res.status(200).json({
-      count: users.length,
+      count: count,
       results: results,
     });
   },

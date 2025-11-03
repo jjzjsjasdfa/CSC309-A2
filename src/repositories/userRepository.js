@@ -19,11 +19,17 @@ const userRepository = {
     });
   },
 
-  async findMany(where, skip, limit){
+  async findManyWithSkipAndLimit(where, skip, limit){
     return prisma.user.findMany({
       where: where,
       skip: skip,
       take: limit,
+    });
+  },
+
+  async findMany(where){
+    return prisma.user.findMany({
+      where: where
     });
   },
 

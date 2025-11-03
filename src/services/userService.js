@@ -15,8 +15,12 @@ const userService = {
     return await userRepository.createRegularUser(utorid, name, email, resetToken, expiresAt);
   },
 
-  async getUsers(where, skip, limit){
-    return await userRepository.findMany(where, skip, limit);
+  async getUsersWithSkipAndLimit(where, skip, limit){
+    return await userRepository.findManyWithSkipAndLimit(where, skip, limit);
+  },
+
+  async getUsers(where){
+    return await userRepository.findMany(where);
   },
 
   async getUserById(id){
