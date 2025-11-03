@@ -19,8 +19,7 @@ router.route("/")
     userController.getUsers
   )
   .all((req, res) => {
-    res.set('Allow', 'GET, POST');
-    res.status(405).json({ error: "Method not allowed" });
+    return res.set('Allow', 'GET, POST').status(405).json({ error: "Method not allowed" });
   });
 
 
@@ -40,8 +39,7 @@ router.route("/:userId")
     userController.updateUser
   )
   .all((req, res) => {
-    res.set('Allow', 'GET, PATCH');
-    res.status(405).json({ error: "Method not allowed" });
+    return res.set('Allow', 'GET, PATCH').status(405).json({ error: "Method not allowed" });
   });
 
 router.route("/users/me")

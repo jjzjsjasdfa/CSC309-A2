@@ -21,8 +21,10 @@ const userController = {
         if(req.query[key] !== undefined){
           if(key === "verified" || key === "activated"){
             where[key] = req.query[key] === "true";
-          }else if(key === "page" || key === "limit"){
+          }else if(key === "page"){
             page = parseInt(req.query[key], 10);
+          }else if(key === "limit"){
+            limit = parseInt(req.query[key], 10);
           }
         }
         else {
@@ -43,7 +45,7 @@ const userController = {
           ({id, utorid, name, email, birthday, role, points, createdAt, lastLogin, verified, avatarUrl}
         )
       );
-      res.status(200).json({
+      return res.status(200).json({
         count: users.length,
         results: results,
       });
@@ -57,13 +59,13 @@ const userController = {
     if(req.user.role === "cashier"){
       user = await userService.getUserWithAvailablePromo(id);
       const { utorid, name, points, verified, promotions } = user;
-      res.status(200).json({ id, utorid, name, points, verified, promotions });
+      return res.status(200).json({ id, utorid, name, points, verified, promotions });
     }
     // manager or higher
     else{
       user = await userService.getUserWithAllPromo(id);
       const { utorid, name, email, birthday, role, points, createdAt, lastLogin, verified, avatarUrl, promotions } = user;
-      res.status(200).json({ id, utorid, name, email, birthday, role, points, createdAt, lastLogin, verified, avatarUrl, promotions });
+      return res.status(200).json({ id, utorid, name, email, birthday, role, points, createdAt, lastLogin, verified, avatarUrl, promotions });
     }
   },
 
@@ -108,7 +110,7 @@ const userController = {
       response[key] = updatedUser[key];
     }
 
-    res.status(200).json(response);
+    return res.status(200).json(response);
   },
 
   async updateMyself(req, res){
@@ -133,13 +135,13 @@ const userController = {
       avatarUrl: updatedUser.avatarUrl
     };
 
-    res.status(200).json(response);
+    return res.status(200).json(response);
   },
 
   async getMyself(req, res){
     const myself = await userService.getUserWithAllPromo(req.user.id);
     const { id, utorid, name, email, birthday, role, points, createdAt, lastLogin, verified, avatarUrl, promotions } = myself
-    res.status(200).json({ id, utorid, name, email, birthday, role, points, createdAt, lastLogin, verified, avatarUrl, promotions });
+    return res.status(200).json({ id, utorid, name, email, birthday, role, points, createdAt, lastLogin, verified, avatarUrl, promotions });
   },
 
   async updateMyPassword(req, res){
@@ -148,12 +150,12 @@ const userController = {
     // see if old matches
     const isMatch = await bcrypt.compare(req.body.old, myself.password);
     if(!isMatch){
-      res.status(403).json({ error: "the provided current password is incorrect" })
+      return res.status(403).json({ error: "the provided current password is incorrect" })
     }
 
     const hashedPassword = await bcrypt.hash(req.body["new"], 10);
     const updated = await userService.updateUserById(req.user.id, { password: hashedPassword });
-    res.status(200).json({ message: "password updated" });
+    return res.status(200).json({ message: "password updated" });
   }
 };
 

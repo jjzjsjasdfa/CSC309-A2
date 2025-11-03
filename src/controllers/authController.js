@@ -20,7 +20,7 @@ const authController = {
     const user = r.user;
     const payload = { id: user.id, role: user.role };
     const token = jwt.sign(payload, SECRET_KEY, { expiresIn: '7d' });
-    res.status(200).json({ token: token, expiresAt: user.expiresAt });
+    return res.status(200).json({ token: token, expiresAt: user.expiresAt });
   },
 
   async generateResetToken(req, res) {
@@ -48,7 +48,7 @@ const authController = {
     user = await userService.updateUserByUtorid(utorid, { resetToken, expiresAt });
     rateLimitMap.set(ip, now);
 
-    res.status(202).json({ expiresAt, resetToken });
+    return res.status(202).json({ expiresAt, resetToken });
   },
 
   async resetPassword(req, res) {
@@ -58,9 +58,9 @@ const authController = {
     let user = await userService.getUserByUtorid(utorid);
     const now = new Date(Date.now());
 
-    if(!user || user.resetToken!== resetToken){
+    if(!user){
       return res.status(401).json({ error: `User with utorid ${utorid} not found` });
-    }else if (!user.resetToken) {
+    }else if (!user.resetToken || user.resetToken !== resetToken) {
       return res.status(404).json({ error: "Token not found" });
     }else if (user.expiresAt < now) {
       return res.status(410).json({ error: "Reset token has expired" });
@@ -68,7 +68,7 @@ const authController = {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     user = await userService.updateUserByUtorid(utorid, { password: hashedPassword, expiresAt: now });
-    res.status(200).json({ message: "Password reset successfully" });
+    return res.status(200).json({ message: "Password reset successfully" });
   }
 }
 

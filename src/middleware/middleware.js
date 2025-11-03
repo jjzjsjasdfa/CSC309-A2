@@ -119,7 +119,7 @@ function authenticateToken(req, res, next) {
 function authorization(allowedRoles) {
   return (req, res, next) => {
     if(!req.user || !allowedRoles.includes(req.user.role)){
-      res.status(403).json({ error: "Operation is not allowed on this user role" });
+      return res.status(403).json({ error: "Operation is not allowed on this user role" });
     }
     next();
   };
@@ -158,7 +158,7 @@ function validatePayload(expectedFields, reqField) {
 // verify userId is numerical and user with userId exists
 // specifically used in the route "/user/:userId"
 async function verifyUserId(req, res, next){
-  const id = req.params.userId;
+  const id = parseInt(req.params.userId, 10);
   if(!/^\d+$/.test(id)){
     return res.status(400).json({ error: `userId must be a number`});
   }
