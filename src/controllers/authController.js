@@ -14,6 +14,9 @@ const authController = {
     const { utorid, password } = req.body;
     const r = await authService.authenticate(utorid, password);
     if(r.result === false){
+      if(r.message === "User has no password"){
+        res.status(400).json({ error: "User has no password" });
+      }
       return res.status(401).json({ error: r.message });
     }
 

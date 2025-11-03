@@ -8,6 +8,9 @@ const authService = {
     // user not found
     if (!user) return { result: false, message: "User not found" };
 
+    // no password
+    if (!user.password) return { result: false, message: "User has no password" };
+
     // password incorrect
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return { result: false, message: "password incorrect" };
