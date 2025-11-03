@@ -48,12 +48,20 @@ const userRepository = {
     });
   },
 
-  async updateUser(id, data){
+  async updateUserById(id, data){
     return prisma.user.update({
       where: { id },
       data: data
     });
-  }
+  },
+
+  async updateUserByUtorid(utorid, data){
+    return prisma.user.update({
+      where: { utorid },
+      data: data
+    });
+  },
+
 };
 
 module.exports = userRepository;

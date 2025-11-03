@@ -1,12 +1,12 @@
 const userRepository = require("../repositories/userRepository");
-const { v4: uuidv4 } = require('uuid');
+const { v4: uuid } = require('uuid');
 
 const userService = {
   async registerRegularUser(utorid, name, email) {
     const existing = await userRepository.findByUtorid(utorid);
     if (existing) throw new Error(`User ${utorid} already exists.`);
 
-    const resetToken = uuidv4();
+    const resetToken = uuid();
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
     return await userRepository.createRegularUser(utorid, name, email, resetToken, expiresAt);
@@ -16,8 +16,12 @@ const userService = {
     return await userRepository.findMany(where, skip, limit);
   },
 
-  async getUser(id){
+  async getUserById(id){
     return await userRepository.findById(id);
+  },
+
+  async getUserByUtorid(utorid){
+    return await userRepository.findByUtorid(utorid);
   },
 
   async getUserWithAvailablePromo(id){
@@ -28,9 +32,13 @@ const userService = {
     return await userRepository.findByIdIncludeAllPromo(id);
   },
 
-  async updateUser(id, data){
-    return await userRepository.updateUser(id, data);
-  }
+  async updateUserById(id, data){
+    return await userRepository.updateUserById(id, data);
+  },
+
+  async updateUserByUtorid(utorid, data){
+    return await userRepository.updateUserByUtorid(utorid, data);
+  },
 };
 
 module.exports = userService;

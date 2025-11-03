@@ -65,6 +65,6 @@ router.patch(
   authorization(["regular", "cashier", "manager", "superuser"]),
   validatePayload({ required: ["old", "new"] }, "body"),
   userController.updateMyPassword
-)
+);
 
 module.exports = router;

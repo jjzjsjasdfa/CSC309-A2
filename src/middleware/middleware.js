@@ -15,6 +15,7 @@ function validateTypeAndValue(req, res, reqField){
         }
         break;
 
+      case "password":
       // new password
       case "new":
         if (value.length < 8 || value.length > 20) {
@@ -108,9 +109,8 @@ function authenticateToken(req, res, next) {
       return res.sendStatus(403);
     }
 
-    console.log(userData);
     // put id and role in req.user
-    req.user = { id: userData.id, role: userData.role };
+    req.user = userData;
 
     next();
   });
@@ -161,7 +161,7 @@ async function verifyUserId(req, res, next){
     return res.status(400).json({ error: `userId must be a number`});
   }
 
-  const user = await userService.getUser(id);
+  const user = await userService.getUserById(id);
   if(!user){
     return res.status(404).json({ error: `User with id ${id} cannot be found`});
   }

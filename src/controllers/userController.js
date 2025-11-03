@@ -102,7 +102,7 @@ const userController = {
       return res.status(400).json({ error: "No update fields provided" });
     }
 
-    const updatedUser = await userService.updateUser(id, updateData);
+    const updatedUser = await userService.updateUserById(id, updateData);
     const response = { id: updatedUser.id, utorid: updatedUser.utorid, name: updatedUser.name };
     for (const key of Object.keys(updateData)) {
       response[key] = updatedUser[key];
@@ -118,7 +118,7 @@ const userController = {
       updateData.avatarUrl = '/uploads/avatars/' + req.file.filename;
     }
 
-    const updatedUser = await userService.updateUser(req.user.id, updateData);
+    const updatedUser = await userService.updateUserById(req.user.id, updateData);
     const response = {
       id: updatedUser.id,
       utorid: updatedUser.utorid,
@@ -146,13 +146,13 @@ const userController = {
     const myself = await userService.getUserWithAllPromo(req.user.id);
 
     // see if old matches
-    const isMatch = await bcrypt.compare(myself.password, req.body.old);
+    const isMatch = await bcrypt.compare(req.body.old, myself.password);
     if(!isMatch){
       res.status(403).json({ error: "the provided current password is incorrect" })
     }
 
     const hashedPassword = await bcrypt.hash(req.body["new"], 10);
-    const updated = await userService.updateUser(req.user.id, { password: hashedPassword });
+    const updated = await userService.updateUserById(req.user.id, { password: hashedPassword });
     res.status(200).json({ message: "password updated" });
   }
 };

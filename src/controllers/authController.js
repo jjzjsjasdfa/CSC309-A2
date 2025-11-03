@@ -1,0 +1,80 @@
+const authService = require("../services/authService");
+const userService = require("../services/userService");
+
+const jwt = require("jsonwebtoken");
+const userRepository = require("../repositories/userRepository");
+const SECRET_KEY = process.env.SECRET_KEY;
+const { v4: uuid } = require('uuid');
+const bcrypt = require("bcrypt");
+
+const rateLimitMap = new Map();
+
+const authController = {
+  async authenticate(req, res) {
+    const { utorid, password } = req.body;
+    try{
+      const user = await authService.authenticate(utorid, password);
+      const payload = { id: user.id, role: user.role };
+      const token = jwt.sign(payload, SECRET_KEY, { expiresIn: '7d' });
+
+      res.json({ token: token, expiresAt: user.expiresAt });
+    }catch(err){
+      res.status(401).send(err);
+    }
+  },
+
+  async generateResetToken(req, res) {
+    // rate limit
+    const ip = req.ip;
+
+    const now = new Date(Date.now());
+
+    const lastRequest = rateLimitMap.get(ip);
+
+    if (lastRequest && now - lastRequest < 60 * 1000) { // 60 seconds
+      return res.status(429).json({ error: "Too many requests from this IP" });
+    }
+
+    rateLimitMap.set(ip, now);
+
+    // generate reset token
+    const { utorid } = req.body;
+    let user = await userService.getUserByUtorid(utorid);
+
+    if(!user){
+      return res.status(404).json({ error: `User with utorid ${utorid} not found` });
+    }
+
+    const resetToken = uuid();
+
+    // set token expiration to 1 hour
+    const expiresAt = new Date(now.getTime() + 60 * 60 * 1000);
+
+    user = await userService.updateUserByUtorid(utorid, { resetToken, expiresAt });
+
+    res.status(202).json({ expiresAt, resetToken });
+  },
+
+  async resetPassword(req, res) {
+    const { utorid, password } = req.body;
+    const { resetToken } = req.params;
+
+    let user = await userService.getUserByUtorid(utorid);
+    const now = new Date(Date.now());
+
+    if(!user){
+      return res.status(404).json({ error: `User with utorid ${utorid} not found` });
+    }else if (user.resetToken !== resetToken) {
+      return res.status(404).json({ error: "Token not found" });
+    }else if (user.expiresAt < now) {
+      return res.status(410).json({ error: "Reset token has expired" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    user = await userService.updateUserByUtorid(utorid, { password: hashedPassword, expiresAt: now });
+    res.status(200).json({ message: "Password reset successfully" });
+  }
+}
+
+module.exports = authController;
+
