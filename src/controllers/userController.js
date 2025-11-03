@@ -16,48 +16,57 @@ const userController = {
 
   async getUsers(req, res){
     let page, limit;
-      const where = {};
-      for(const key in req.query){
-        if(req.query[key] !== undefined){
-          if(key === "verified" || key === "activated"){
+    let where = {};
+
+    for(const key in req.query){
+      if(req.query[key] !== undefined){
+        switch(key){
+          case "name":
+          case "role":
+            where[key] = req.query[key];
+            break;
+          case "verified":
+          case "activated":
             where[key] = req.query[key] === "true";
-          }else if(key === "page"){
+            break;
+          case "page":
             page = parseInt(req.query[key], 10);
-          }else if(key === "limit"){
+            break;
+          case "limit":
             limit = parseInt(req.query[key], 10);
-          }
-        }
-        else {
-          // default value
-          if(key === "page"){
-            page = 1;
-          }
-          if(key === "limit"){
-            limit = 10;
-          }
+            break;
         }
       }
+    }
 
-      if(page < 1 || limit < 1){
-        return res.status(400).json({ error: "page and limit must be positive integers" });
-      }
+    if(page === undefined){
+      page = 1;
+    }
 
-      const skip = (page - 1) * limit;
-      const users = await userService.getUsers(where, skip, limit);
+    if(limit === undefined){
+      limit = 10;
+    }
 
-      if(!users){
-        return res.status(200).json({ message: "no users found" });
-      }
+    if(page < 1 || limit < 1){
+      return res.status(400).json({ error: "page and limit must be positive integers" });
+    }
 
-      const results = users.map(
-        ({id, utorid, name, email, birthday, role, points, createdAt, lastLogin, verified, avatarUrl}) =>
-          ({id, utorid, name, email, birthday, role, points, createdAt, lastLogin, verified, avatarUrl}
-        )
-      );
-      return res.status(200).json({
-        count: users.length,
-        results: results,
-      });
+    const skip = (page - 1) * limit;
+    const users = await userService.getUsers(where, skip, limit);
+
+    if(!users){
+      return res.status(200).json({ message: "no users found" });
+    }
+
+    const results = users.map(
+      ({id, utorid, name, email, birthday, role, points, createdAt, lastLogin, verified, avatarUrl}) =>
+        ({id, utorid, name, email, birthday, role, points, createdAt, lastLogin, verified, avatarUrl}
+      )
+    );
+    return res.status(200).json({
+      count: users.length,
+      results: results,
+    });
   },
 
   async getUser(req, res) {
