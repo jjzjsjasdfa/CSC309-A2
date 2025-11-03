@@ -57,9 +57,15 @@ function validateTypeAndValue(req, res, reqField){
         }
         break;
 
+      case "suspicious":
+        if (typeof value === "boolean") break;
+        if (!/^(true|false|null)$/.test(value)) {
+          return res.status(400).json({ error: `${key} field should be boolean or null` });
+        }
+        break;
+
       case "verified":
       case "activated":
-      case "suspicious":
         if (typeof value === "boolean") break;
         if (!/^(true|false)$/.test(value)) {
           return res.status(400).json({ error: `${key} field should be boolean` });
