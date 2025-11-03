@@ -1,6 +1,5 @@
 const SECRET_KEY = process.env.JWT_SECRET;
 const jwt = require('jsonwebtoken');
-const multer = require("multer");
 const userService = require("../services/userService");
 
 
@@ -135,7 +134,10 @@ function validatePayload(expectedFields, reqField) {
     const allFields = requiredFields + optionalFields
 
     // Check for missing fields
-    const missing = requiredFields.filter(f => !actualFields.includes(f));
+    const missing = requiredFields.filter(f => !actualFields.includes(f) || req[reqField][f] === undefined || req[reqField][f] === null);
+    if (missing.length > 0) {
+      return res.status(400).json({ error: `Missing field(s): ${missing.join(', ')}` });
+    }
     if (missing.length > 0) {
       return res.status(400).json({ error: `Missing field(s): ${missing.join(', ')}` });
     }

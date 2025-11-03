@@ -8,9 +8,9 @@ const userController = {
       const newUser = await userService.registerRegularUser(u, n, e);
       const { id, utorid, name, email, verified, expiresAt, resetToken } = newUser;
 
-      res.status(201).json({ id, utorid, name, email, verified, expiresAt, resetToken });
+      return res.status(201).json({ id, utorid, name, email, verified, expiresAt, resetToken });
     } catch (error) {
-      res.status(409).json({ error: error.message });
+      return res.status(409).json({ error: error.message });
     }
   },
 

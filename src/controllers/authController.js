@@ -29,7 +29,7 @@ const authController = {
     let user = await userService.getUserByUtorid(utorid);
 
     if(!user){
-      return res.status(401).json({ error: `User with utorid ${utorid} not found` });
+      return res.status(404).json({ error: `User with utorid ${utorid} not found` });
     }
 
     // rate limit
@@ -58,9 +58,9 @@ const authController = {
     let user = await userService.getUserByUtorid(utorid);
     const now = new Date(Date.now());
 
-    if(!user){
+    if(!user || user.resetToken!== resetToken){
       return res.status(401).json({ error: `User with utorid ${utorid} not found` });
-    }else if (!user.resetToken || user.resetToken!== resetToken) {
+    }else if (!user.resetToken) {
       return res.status(404).json({ error: "Token not found" });
     }else if (user.expiresAt < now) {
       return res.status(410).json({ error: "Reset token has expired" });
