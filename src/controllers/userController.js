@@ -115,7 +115,13 @@ const userController = {
       if (role === "cashier" && user.suspicious === true) {
         return res.status(400).json({ error: "A suspicious user cannot be promoted to cashier" });
       }
-      const allowedRoles = req.user.role === "manager" ? ["regular", "cashier"] : ["regular", "cashier", "manager", "superuser"]
+
+      let allowedRoles;
+      if(req.user.role === "manager"){
+        allowedRoles = ["regular", "cashier"];
+      }else{
+        allowedRoles = ["regular", "cashier", "manager", "superuser"];
+      }
 
       if (!allowedRoles.includes(role)) {
         return res.status(403).json({ error: `You are not allowed to promote someone to ${role}` });
@@ -138,10 +144,14 @@ const userController = {
   },
 
   async updateMyself(req, res){
-    const updateData = { ...req.body };
+    let updateData = { ...req.body };
 
     if (req.file) {
       updateData.avatarUrl = '/uploads/avatars/' + req.file.filename;
+    }
+
+    if(req.body.birthday !== undefined){
+      updateData.birthday = new Date(req.body.birthday);
     }
 
     const updatedUser = await userService.updateUserById(req.user.id, updateData);
