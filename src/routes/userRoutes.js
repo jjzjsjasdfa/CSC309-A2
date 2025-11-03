@@ -5,23 +5,28 @@ const upload = multer({ dest: 'uploads/avatars' });
 const { authenticateToken, authorization, validatePayload, verifyUserId } = require('../middleware/middleware');
 const userController = require("../controllers/userController");
 
-router.route("/")
-  .post(
+router.patch(
+  "/me/password",
+  authenticateToken,
+  authorization(["regular", "cashier", "manager", "superuser"]),
+  validatePayload({ required: ["old", "new"] }, "body"),
+  userController.updateMyPassword
+);
+
+router.route("/me")
+  .patch(
     authenticateToken,
-    authorization(["cashier", "manager", "superuser"]),
-    validatePayload({ required: ["utorid", "name", "email"] }, "body"),
-    userController.register
+    authorization(["regular", "cashier", "manager", "superuser"]),
+    validatePayload({ optional: ["name", "email", "birthday", "avatar"] }, "body"),
+    upload.single('avatar'),
+    userController.updateMyself
   )
   .get(
     authenticateToken,
-    authorization(["manager", "superuser"]),
-    validatePayload({ optional: ["name", "role", "verified", "activated", "page", "limit"] }, "query"),
-    userController.getUsers
-  )
-  .all((req, res) => {
-    return res.set('Allow', 'GET, POST').status(405).json({ error: "Method not allowed" });
-  });
-
+    authorization(["regular", "cashier", "manager", "superuser"]),
+    validatePayload({}, "query"),
+    userController.getMyself
+  );
 
 router.route("/:userId")
   .get(
@@ -42,27 +47,21 @@ router.route("/:userId")
     return res.set('Allow', 'GET, PATCH').status(405).json({ error: "Method not allowed" });
   });
 
-router.route("/users/me")
-  .patch(
+router.route("/")
+  .post(
     authenticateToken,
-    authorization(["regular", "cashier", "manager", "superuser"]),
-    validatePayload({ optional: ["name", "email", "birthday", "avatar"] }, "body"),
-    upload.single('avatar'),
-    userController.updateMyself
+    authorization(["cashier", "manager", "superuser"]),
+    validatePayload({ required: ["utorid", "name", "email"] }, "body"),
+    userController.register
   )
   .get(
     authenticateToken,
-    authorization(["regular", "cashier", "manager", "superuser"]),
-    validatePayload({}, "query"),
-    userController.getMyself
-  );
-
-router.patch(
-  "/user/me/password",
-  authenticateToken,
-  authorization(["regular", "cashier", "manager", "superuser"]),
-  validatePayload({ required: ["old", "new"] }, "body"),
-  userController.updateMyPassword
-);
+    authorization(["manager", "superuser"]),
+    validatePayload({ optional: ["name", "role", "verified", "activated", "page", "limit"] }, "query"),
+    userController.getUsers
+  )
+  .all((req, res) => {
+    return res.set('Allow', 'GET, POST').status(405).json({ error: "Method not allowed" });
+  });
 
 module.exports = router;
