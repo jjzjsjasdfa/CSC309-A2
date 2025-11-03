@@ -134,18 +134,19 @@ function validatePayload(expectedFields, reqField) {
     const allFields = requiredFields + optionalFields
 
     // Check for missing fields
-    const missing = requiredFields.filter(f => !actualFields.includes(f) || req[reqField][f] === undefined || req[reqField][f] === null);
-    if (missing.length > 0) {
-      return res.status(400).json({ error: `Missing field(s): ${missing.join(', ')}` });
-    }
-    if (missing.length > 0) {
-      return res.status(400).json({ error: `Missing field(s): ${missing.join(', ')}` });
+    if(requiredFields){
+      const missing = requiredFields.filter(f => !actualFields.includes(f) || req[reqField][f] === undefined || req[reqField][f] === null);
+      if (missing.length > 0) {
+        return res.status(400).json({ error: `Missing field(s): ${missing.join(', ')}` });
+      }
     }
 
     // Check for extra fields
-    const extra = actualFields.filter(f => !allFields.includes(f));
-    if (extra.length > 0) {
-      return res.status(400).json({ error: `Unknown field(s): ${extra.join(', ')}` });
+    if(allFields){
+      const extra = actualFields.filter(f => !allFields.includes(f));
+      if (extra.length > 0) {
+        return res.status(400).json({ error: `Unknown field(s): ${extra.join(', ')}` });
+      }
     }
 
     const error = validateTypeAndValue(req, res, reqField);

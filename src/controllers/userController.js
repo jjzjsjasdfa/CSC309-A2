@@ -38,8 +38,17 @@ const userController = {
         }
       }
 
+      if(page < 1 || limit < 1){
+        return res.status(400).json({ error: "page and limit must be positive integers" });
+      }
+
       const skip = (page - 1) * limit;
       const users = await userService.getUsers(where, skip, limit);
+
+      if(!users){
+        return res.status(200).json({ message: "no users found" });
+      }
+
       const results = users.map(
         ({id, utorid, name, email, birthday, role, points, createdAt, lastLogin, verified, avatarUrl}) =>
           ({id, utorid, name, email, birthday, role, points, createdAt, lastLogin, verified, avatarUrl}
