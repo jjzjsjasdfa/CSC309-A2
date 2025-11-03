@@ -12,15 +12,15 @@ const rateLimitMap = new Map();
 const authController = {
   async authenticate(req, res) {
     const { utorid, password } = req.body;
-    try{
-      const user = await authService.authenticate(utorid, password);
-      const payload = { id: user.id, role: user.role };
-      const token = jwt.sign(payload, SECRET_KEY, { expiresIn: '7d' });
-
-      res.json({ token: token, expiresAt: user.expiresAt });
-    }catch(err){
-      res.status(401).send(err);
+    const r = await authService.authenticate(utorid, password);
+    if(r.result === false){
+      return res.status(401).json({ error: r.message });
     }
+
+    const user = r.user;
+    const payload = { id: user.id, role: user.role };
+    const token = jwt.sign(payload, SECRET_KEY, { expiresIn: '7d' });
+    res.status(200).json({ token: token, expiresAt: user.expiresAt });
   },
 
   async generateResetToken(req, res) {

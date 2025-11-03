@@ -5,16 +5,19 @@ const authService = {
   async authenticate(utorid, password) {
     let user = await userRepository.findByUtorid(utorid);
 
-    // handle error
-    if (!user) throw new Error("User not found");
-    if (user && !(await bcrypt.compare(password, user.password))) throw new Error("utorid and password do not match");
+    // user not found
+    if (!user) return { result: false, message: "User not found" };
+
+    // password incorrect
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return { result: false, message: "password incorrect" };
 
     // update lastLogin and expiresAt
+    const now = new Date(Date.now());
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
-    user = await userRepository.updateUserByUtorid(utorid, { lastLogin: new Date(), expiresAt });
-
-    return user;
+    expiresAt.setDate(now.getDate() + 7);
+    user = await userRepository.updateUserByUtorid(utorid, { lastLogin: now, expiresAt });
+    return { result: true, user: user };
   },
 }
 

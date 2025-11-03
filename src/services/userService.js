@@ -3,8 +3,11 @@ const { v4: uuid } = require('uuid');
 
 const userService = {
   async registerRegularUser(utorid, name, email) {
-    const existing = await userRepository.findByUtorid(utorid);
-    if (existing) throw new Error(`User ${utorid} already exists.`);
+    let existing = await userRepository.findByUtorid(utorid);
+    if (existing) throw new Error(`User with utorid ${utorid} already exists.`);
+
+    existing = await userRepository.findByEmail(email);
+    if (existing) throw new Error(`User with email ${email} already exists.`);
 
     const resetToken = uuid();
     const expiresAt = new Date();

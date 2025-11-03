@@ -13,6 +13,12 @@ const userRepository = {
     });
   },
 
+  async findByEmail(email){
+    return prisma.user.findUnique({
+      where: { email }
+    });
+  },
+
   async findMany(where, skip, limit){
     return prisma.user.findMany({
       where: where,
