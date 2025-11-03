@@ -1,4 +1,4 @@
-const SECRET_KEY = process.env.SECRET_KEY;
+const SECRET_KEY = process.env.JWT_SECRET;
 const jwt = require('jsonwebtoken');
 const multer = require("multer");
 const userService = require("../services/userService");

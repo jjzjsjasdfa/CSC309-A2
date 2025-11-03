@@ -3,7 +3,7 @@ const userService = require("../services/userService");
 
 const jwt = require("jsonwebtoken");
 const userRepository = require("../repositories/userRepository");
-const SECRET_KEY = process.env.SECRET_KEY;
+const SECRET_KEY = process.env.JWT_SECRET;
 const { v4: uuid } = require('uuid');
 const bcrypt = require("bcrypt");
 
