@@ -31,6 +31,10 @@ const userService = {
     return await userRepository.findByUtorid(utorid);
   },
 
+  async getUserByResetToken(token){
+    return await userRepository.findByResetToken(token);
+  },
+
   async getUserWithAvailablePromo(id){
     return await userRepository.findByIdIncludeAvailablePromo(id);
   },

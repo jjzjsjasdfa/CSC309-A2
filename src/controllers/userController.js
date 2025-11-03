@@ -96,6 +96,7 @@ const userController = {
     const id = parseInt(req.params.userId, 10);
     const { email, verified, suspicious, role } = req.body;
     const updateData = {};
+    const user = await userService.getUserById(id);
 
     if (email !== undefined){
       updateData.email = email;

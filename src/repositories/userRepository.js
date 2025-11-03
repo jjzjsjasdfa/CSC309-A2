@@ -13,6 +13,12 @@ const userRepository = {
     });
   },
 
+  async findByResetToken(resetToken){
+    return prisma.user.findFirst({
+      where: { resetToken }
+    });
+  },
+
   async findByEmail(email){
     return prisma.user.findUnique({
       where: { email }

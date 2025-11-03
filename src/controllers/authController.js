@@ -55,13 +55,13 @@ const authController = {
     const { utorid, password } = req.body;
     const { resetToken } = req.params;
 
-    let user = await userService.getUserByUtorid(utorid);
+    let user = await userService.getUserByResetToken(resetToken);
     const now = new Date(Date.now());
 
     if(!user){
-      return res.status(401).json({ error: `User with utorid ${utorid} not found` });
-    }else if (!user.resetToken || user.resetToken !== resetToken) {
-      return res.status(404).json({ error: "Token not found" });
+      return res.status(404).json({ error: `User with resetToken ${resetToken} not found` });
+    }else if (user.utorid !== utorid) {
+      return res.status(401).json({ error: "Utorid does not match" });
     }else if (user.expiresAt < now) {
       return res.status(410).json({ error: "Reset token has expired" });
     }
