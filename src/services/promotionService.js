@@ -1,46 +1,75 @@
 const promotionRepository = require("../repositories/promotionRepository");
 
-const toDbType = (t) => (t === "one-time" ? "onetime" : t);
+const toDbType  = (t) => (t === "one-time" ? "onetime" : t);
 const toApiType = (t) => (t === "onetime" ? "one-time" : t);
 
-function ensureValidDates(startTime, endTime) {
-  const start = new Date(startTime);
-  const end = new Date(endTime);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    throw new Error("Invalid date");
-  }
-  if (end <= start) {
-    throw new Error("endTime must be after startTime");
-  }
-  return { start, end };
+const nowUtc = () => new Date();
+const isActive = (p) => {
+  const now = nowUtc();
+  return new Date(p.startTime) <= now && now <= new Date(p.endTime);
+};
+
+const err404 = (msg = "Promotion not found") => { const e = new Error(msg); e.code = 404; return e; };
+const err403 = (msg = "Forbidden") => { const e = new Error(msg); e.code = 403; return e; };
+
+function toNumberOrNull(v) {
+  if (v === undefined || v === null) return null;
+  const n = typeof v === "number" ? v : Number(v);
+  if (Number.isNaN(n)) throw new Error("Value must be a number");
+  return n;
 }
 
-function ensureNumberOrNull(v, name) {
+function numberOrNull(v, name) {
+  const n = toNumberOrNull(v);
+  if (n === null) return null;
+  if (n < 0) throw new Error(`${name} must be non-negative`);
+  return n;
+}
+
+function intOrNull(v, name) {
   if (v === undefined || v === null) return null;
-  if (typeof v !== "number" || Number.isNaN(v)) {
-    throw new Error(`${name} must be a number`);
+  const n = typeof v === "number" ? v : Number.parseInt(v, 10);
+  if (Number.isNaN(n)) throw new Error(`${name} must be a number`);
+  if (!Number.isInteger(n) || n < 0) throw new Error(`${name} must be a non-negative integer`);
+  return n;
+}
+
+function parseAndCheckDates(startTime, endTime, mustHaveBoth = true) {
+  if (mustHaveBoth) {
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) throw new Error("Invalid date");
+    if (end <= start) throw new Error("endTime must be after startTime");
+    return { start, end };
+  } else {
+    const start = startTime !== undefined ? new Date(startTime) : undefined;
+    const end = endTime !== undefined ? new Date(endTime) : undefined;
+
+    if (start !== undefined && Number.isNaN(start.getTime())) throw new Error("Invalid startTime");
+    if (end !== undefined && Number.isNaN(end.getTime())) throw new Error("Invalid endTime");
+
+    if (start !== undefined && end !== undefined && end <= start) {
+      throw new Error("endTime must be after startTime");
+    }
+    return { start, end };
   }
-  if (v < 0) throw new Error(`${name} must be non-negative`);
-  return v;
 }
 
 const promotionService = {
   async createPromotion(data) {
     const { name, description, type, startTime, endTime } = data;
     if (!name || !description || !type || !startTime || !endTime) {
-      throw new Error("Missing required fields");
+      const e = new Error("Missing required fields");
+      e.code = 400;
+      throw e;
     }
     if (!["automatic", "one-time"].includes(type)) {
-      throw new Error("type must be 'automatic' or 'one-time'");
+      const e = new Error("type must be 'automatic' or 'one-time'");
+      e.code = 400;
+      throw e;
     }
 
-    const { start, end } = ensureValidDates(startTime, endTime);
-
-    const minSpending = ensureNumberOrNull(data.minSpending, "minSpending");
-    const rate = ensureNumberOrNull(data.rate, "rate");
-    const points = (data.points === undefined || data.points === null)
-      ? null
-      : (Number.isInteger(data.points) && data.points >= 0 ? data.points : (() => { throw new Error("points must be a non-negative integer"); })());
+    const { start, end } = parseAndCheckDates(startTime, endTime, true);
 
     const created = await promotionRepository.create({
       name,
@@ -48,61 +77,143 @@ const promotionService = {
       type: toDbType(type),
       startTime: start,
       endTime: end,
-      minSpending,
-      rate,
-      points
+      minSpending: numberOrNull(data.minSpending, "minSpending"),
+      rate: numberOrNull(data.rate, "rate"),
+      points: intOrNull(data.points, "points"),
     });
 
     return { ...created, type: toApiType(created.type) };
   },
 
-  async getAllPromotions() {
-    const promos = await promotionRepository.findMany();
-    return promos.map(p => ({ ...p, type: toApiType(p.type) }));
+  async getAllPromotionsForUser(user, query = {}) {
+    const role = user.role;
+    const page = query.page ? Number(query.page) : 1;
+    const limit = query.limit ? Number(query.limit) : 10;
+    const skip = (page - 1) * limit;
+
+    const where = {};
+
+    if (query.name) where.name = { contains: query.name, mode: "insensitive" };
+    if (query.type) where.type = toDbType(query.type);
+
+    const now = nowUtc();
+
+    if (role === "regular" || role === "cashier") {
+      where.startTime = { lte: now };
+      where.endTime = { gte: now };
+    } else {
+      if (query.started === "true") {
+
+        where.startTime = { lte: now };
+      }
+      if (query.ended === "true") {
+        where.endTime = { lt: now };
+      }
+    }
+
+    const results = await promotionRepository.findMany(where, skip, limit, { endTime: "asc" });
+    return {
+      count: results.length,
+      results: results.map(p => ({ ...p, type: toApiType(p.type) })),
+    };
   },
 
-  async getPromotionById(id) {
-    const promo = await promotionRepository.findById(id);
-    if (!promo) throw new Error("Promotion not found");
-    return { ...promo, type: toApiType(promo.type) };
+  async getPromotionByIdForUser(id, role) {
+    const p = await promotionRepository.findById(id);
+    if (!p) throw err404("Promotion not found");
+
+    if ((role === "regular" || role === "cashier") && !isActive(p)) {
+      throw err404("Promotion not active");
+    }
+    return { ...p, type: toApiType(p.type) };
   },
 
   async updatePromotion(id, data) {
     const existing = await promotionRepository.findById(id);
-    if (!existing) throw new Error("Promotion not found");
+    if (!existing) {
+      const e = new Error("Promotion not found");
+      e.code = 404;
+      throw e;
+    }
 
     const patch = {};
 
-    if (data.name !== undefined) patch.name = data.name;
-    if (data.description !== undefined) patch.description = data.description;
+    if (data.name        !== undefined) patch.name        = String(data.name);
+    if (data.description !== undefined) patch.description = String(data.description);
 
     if (data.type !== undefined) {
-      if (!["automatic", "one-time"].includes(data.type)) {
-        throw new Error("type must be 'automatic' or 'one-time'");
+      const t = String(data.type);
+      if (!["automatic", "one-time", "onetime"].includes(t)) {
+        const e = new Error("type must be 'automatic' or 'one-time'");
+        e.code = 400;
+        throw e;
       }
-      patch.type = toDbType(data.type);
+      patch.type = toDbType(t);
     }
 
-    let newStart = existing.startTime;
-    let newEnd = existing.endTime;
-    if (data.startTime !== undefined) newStart = new Date(data.startTime);
-    if (data.endTime !== undefined) newEnd = new Date(data.endTime);
-    if (data.startTime !== undefined || data.endTime !== undefined) {
-      if (Number.isNaN(newStart.getTime()) || Number.isNaN(newEnd.getTime())) {
-        throw new Error("Invalid date");
-      }
-      if (newEnd <= newStart) {
-        throw new Error("endTime must be after startTime");
-      }
-      patch.startTime = newStart;
-      patch.endTime = newEnd;
+    const hasNewStart = data.startTime !== undefined;
+    const hasNewEnd   = data.endTime   !== undefined;
+
+    let newStart = hasNewStart ? new Date(data.startTime) : null;
+    let newEnd   = hasNewEnd   ? new Date(data.endTime)   : null;
+
+    if (hasNewStart && Number.isNaN(newStart.getTime())) {
+      const e = new Error("Invalid startTime"); e.code = 400; throw e;
+    }
+    if (hasNewEnd && Number.isNaN(newEnd.getTime())) {
+      const e = new Error("Invalid endTime"); e.code = 400; throw e;
     }
 
-    if (data.minSpending !== undefined) patch.minSpending = ensureNumberOrNull(data.minSpending, "minSpending");
-    if (data.rate !== undefined) patch.rate = ensureNumberOrNull(data.rate, "rate");
+    const effectiveStart = hasNewStart ? newStart : new Date(existing.startTime);
+    const effectiveEnd   = hasNewEnd   ? newEnd   : new Date(existing.endTime);
+    if (effectiveEnd <= effectiveStart) {
+      const e = new Error("endTime must be after startTime"); e.code = 400; throw e;
+    }
+
+    if (hasNewStart) patch.startTime = newStart;
+    if (hasNewEnd)   patch.endTime   = newEnd;
+
+    const coerceNum = (v) =>
+      (v === "" || v === undefined) ? null : (v === null ? null : Number(v));
+
+    if (data.minSpending !== undefined) {
+      if (data.minSpending === null || data.minSpending === "") {
+        patch.minSpending = null;
+      } else {
+        const n = coerceNum(data.minSpending);
+        if (Number.isNaN(n) || n < 0) {
+          const e = new Error("minSpending must be non-negative number"); e.code = 400; throw e;
+        }
+        patch.minSpending = n;
+      }
+    }
+
+    if (data.rate !== undefined) {
+      if (data.rate === null || data.rate === "") {
+        patch.rate = null;
+      } else {
+        const n = coerceNum(data.rate);
+        if (Number.isNaN(n) || n < 0) {
+          const e = new Error("rate must be non-negative number"); e.code = 400; throw e;
+        }
+        patch.rate = n;
+      }
+    }
+
     if (data.points !== undefined) {
-      if (!Number.isInteger(data.points) || data.points < 0) throw new Error("points must be a non-negative integer");
-      patch.points = data.points;
+      if (data.points === null || data.points === "") {
+        patch.points = null;
+      } else {
+        const n = Number(data.points);
+        if (!Number.isInteger(n) || n < 0) {
+          const e = new Error("points must be a non-negative integer"); e.code = 400; throw e;
+        }
+        patch.points = n;
+      }
+    }
+
+    if (Object.keys(patch).length === 0) {
+      return { ...existing, type: toApiType(existing.type) };
     }
 
     const updated = await promotionRepository.update(id, patch);
@@ -110,12 +221,25 @@ const promotionService = {
   },
 
   async deletePromotion(id) {
-    const promo = await promotionRepository.findById(id);
-    if (!promo) throw new Error("Promotion not found");
-    if (promo.startTime <= new Date()) {
-      throw new Error("Cannot delete a promotion that has already started");
+    const p = await promotionRepository.findById(id);
+    if (!p) throw err404("Promotion not found");
+
+    if (new Date(p.startTime) <= nowUtc()) {
+      throw err403("Cannot delete a promotion that has already started");
     }
+
     await promotionRepository.delete(id);
+  },
+
+  async update(req, res) {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "Invalid promotion id" });
+      const promo = await promotionService.updatePromotion(id, req.body);
+      return res.status(200).json(promo);
+    } catch (err) {
+      return res.status(err.code || 400).json({ error: err.message });
+    }
   }
 };
 
