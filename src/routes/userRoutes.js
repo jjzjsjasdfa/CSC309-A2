@@ -31,6 +31,7 @@ router.route("/me")
 
 router.route("/:userId")
   .get(
+    debug,
     authenticateToken,
     authorization(["cashier", "manager", "superuser"]),
     verifyUserId,

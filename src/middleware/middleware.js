@@ -179,6 +179,7 @@ async function verifyUserId(req, res, next){
 }
 
 async function debug(req, res, next){
+  console.log(req.originalUrl);
   console.log(req.body);
   next();
 }
