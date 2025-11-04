@@ -55,6 +55,24 @@ function parseAndCheckDates(startTime, endTime, mustHaveBoth = true) {
   }
 }
 
+function buildUpdateResponse(updated, patch) {
+  const out = {
+    id: updated.id,
+    name: updated.name,
+    type: (updated.type === "onetime" ? "one-time" : updated.type),
+  };
+
+  const keys = Object.keys(patch);
+  if (keys.includes("description")) out.description = updated.description;
+  if (keys.includes("startTime"))   out.startTime   = new Date(updated.startTime).toISOString();
+  if (keys.includes("endTime"))     out.endTime     = new Date(updated.endTime).toISOString();
+  if (keys.includes("minSpending")) out.minSpending = updated.minSpending;
+  if (keys.includes("rate"))        out.rate        = updated.rate;
+  if (keys.includes("points"))      out.points      = updated.points;
+
+  return out;
+}
+
 const promotionService = {
   async createPromotion(data) {
     const { name, description, type, startTime, endTime } = data;
@@ -130,42 +148,86 @@ const promotionService = {
 
   async updatePromotion(id, data) {
     const existing = await promotionRepository.findById(id);
-    if (!existing) {
-      const e = new Error("Promotion not found");
-      e.code = 404;
-      throw e;
-    }
+    if (!existing) { const e = new Error("Promotion not found"); e.code = 404; throw e; }
 
+    const now = nowUtc();                         // <- one 'now' only
+    const coerceNum = (v) => (v === null || v === undefined || v === "") ? null : Number(v);
+
+    // Build patch (strings & type)
     const patch = {};
-
     if (data.name        !== undefined) patch.name        = String(data.name);
     if (data.description !== undefined) patch.description = String(data.description);
 
     if (data.type !== undefined) {
       const t = String(data.type);
       if (!["automatic", "one-time", "onetime"].includes(t)) {
-        const e = new Error("type must be 'automatic' or 'one-time'");
-        e.code = 400;
-        throw e;
+        const e = new Error("type must be 'automatic' or 'one-time'"); e.code = 400; throw e;
       }
-      patch.type = toDbType(t);
+      patch.type = (t === "one-time" ? "onetime" : t);
     }
 
+    // Numbers (non-negative; allow 0)
+    if (data.minSpending !== undefined) {
+      const n = coerceNum(data.minSpending);
+      if (n === null || Number.isNaN(n) || n < 0) {
+        const e = new Error("minSpending must be non-negative number"); e.code = 400; throw e;
+      }
+      patch.minSpending = n;
+    }
+
+    if (data.rate !== undefined) {
+      const n = coerceNum(data.rate);
+      if (n === null || Number.isNaN(n) || n < 0) {
+        const e = new Error("rate must be non-negative number"); e.code = 400; throw e;
+      }
+      patch.rate = n;
+    }
+
+    if (data.points !== undefined) {
+      const n = coerceNum(data.points);
+      if (n === null || !Number.isInteger(n) || n < 0) {
+        const e = new Error("points must be a non-negative integer"); e.code = 400; throw e;
+      }
+      patch.points = n;
+    }
+
+    // Dates (partial allowed)
     const hasNewStart = data.startTime !== undefined;
     const hasNewEnd   = data.endTime   !== undefined;
 
     let newStart = hasNewStart ? new Date(data.startTime) : null;
     let newEnd   = hasNewEnd   ? new Date(data.endTime)   : null;
 
-    if (hasNewStart && Number.isNaN(newStart.getTime())) {
-      const e = new Error("Invalid startTime"); e.code = 400; throw e;
-    }
-    if (hasNewEnd && Number.isNaN(newEnd.getTime())) {
-      const e = new Error("Invalid endTime"); e.code = 400; throw e;
+    if (hasNewStart && Number.isNaN(newStart.getTime())) { const e = new Error("Invalid startTime"); e.code = 400; throw e; }
+    if (hasNewEnd   && Number.isNaN(newEnd.getTime()))   { const e = new Error("Invalid endTime");   e.code = 400; throw e; }
+
+    // New times cannot be in the past
+    if (hasNewStart && newStart < now) { const e = new Error("startTime cannot be in the past"); e.code = 400; throw e; }
+    if (hasNewEnd   && newEnd   < now) { const e = new Error("endTime cannot be in the past");   e.code = 400; throw e; }
+
+    // Spec time rules based on ORIGINAL window
+    const originalStart   = new Date(existing.startTime);
+    const originalEnd     = new Date(existing.endTime);
+    const originalStarted = now >= originalStart;
+    const originalEnded   = now >= originalEnd;
+
+    const touchingLockedFields =
+      (data.name        !== undefined) ||
+      (data.description !== undefined) ||
+      (data.type        !== undefined) ||
+      (data.startTime   !== undefined) ||
+      (data.minSpending !== undefined) ||
+      (data.rate        !== undefined) ||
+      (data.points      !== undefined);
+
+
+    if (originalEnded && hasNewEnd) {
+      const e = new Error("Cannot update endTime after original end time has passed"); e.code = 400; throw e;
     }
 
-    const effectiveStart = hasNewStart ? newStart : new Date(existing.startTime);
-    const effectiveEnd   = hasNewEnd   ? newEnd   : new Date(existing.endTime);
+    // Maintain start < end with effective pair
+    const effectiveStart = hasNewStart ? newStart : originalStart;
+    const effectiveEnd   = hasNewEnd   ? newEnd   : originalEnd;
     if (effectiveEnd <= effectiveStart) {
       const e = new Error("endTime must be after startTime"); e.code = 400; throw e;
     }
@@ -173,51 +235,17 @@ const promotionService = {
     if (hasNewStart) patch.startTime = newStart;
     if (hasNewEnd)   patch.endTime   = newEnd;
 
-    const coerceNum = (v) =>
-      (v === "" || v === undefined) ? null : (v === null ? null : Number(v));
-
-    if (data.minSpending !== undefined) {
-      if (data.minSpending === null || data.minSpending === "") {
-        patch.minSpending = null;
-      } else {
-        const n = coerceNum(data.minSpending);
-        if (Number.isNaN(n) || n < 0) {
-          const e = new Error("minSpending must be non-negative number"); e.code = 400; throw e;
-        }
-        patch.minSpending = n;
-      }
-    }
-
-    if (data.rate !== undefined) {
-      if (data.rate === null || data.rate === "") {
-        patch.rate = null;
-      } else {
-        const n = coerceNum(data.rate);
-        if (Number.isNaN(n) || n < 0) {
-          const e = new Error("rate must be non-negative number"); e.code = 400; throw e;
-        }
-        patch.rate = n;
-      }
-    }
-
-    if (data.points !== undefined) {
-      if (data.points === null || data.points === "") {
-        patch.points = null;
-      } else {
-        const n = Number(data.points);
-        if (!Number.isInteger(n) || n < 0) {
-          const e = new Error("points must be a non-negative integer"); e.code = 400; throw e;
-        }
-        patch.points = n;
-      }
-    }
-
+    // Nothing to change → minimal envelope
     if (Object.keys(patch).length === 0) {
-      return { ...existing, type: toApiType(existing.type) };
+      return {
+        id: existing.id,
+        name: existing.name,
+        type: (existing.type === "onetime" ? "one-time" : existing.type),
+      };
     }
 
     const updated = await promotionRepository.update(id, patch);
-    return { ...updated, type: toApiType(updated.type) };
+    return buildUpdateResponse(updated, patch);
   },
 
   async deletePromotion(id) {
@@ -238,6 +266,7 @@ const promotionService = {
       const promo = await promotionService.updatePromotion(id, req.body);
       return res.status(200).json(promo);
     } catch (err) {
+      console.error("PATCH /promotions/:id failed:", err.message);
       return res.status(err.code || 400).json({ error: err.message });
     }
   }

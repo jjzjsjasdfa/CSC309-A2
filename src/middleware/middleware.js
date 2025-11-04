@@ -164,7 +164,7 @@ function validatePayload(expectedFields, reqField) {
 
 // verify userId is numerical and user with userId exists
 // specifically used in the route "/user/:userId"
-async function verifyUserId(req, res在, next){
+async function verifyUserId(req, res, next){
   const id = parseInt(req.params.userId, 10);
   if(!/^\d+$/.test(id)){
     return res.status(400).json({ error: `userId must be a number`});
