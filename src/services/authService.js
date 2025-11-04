@@ -19,7 +19,7 @@ const authService = {
     const now = new Date(Date.now());
     const expiresAt = new Date();
     expiresAt.setDate(now.getDate() + 7);
-    user = await userRepository.updateUserByUtorid(utorid, { lastLogin: now, expiresAt });
+    user = await userRepository.updateUserByUtorid(utorid, { lastLogin: now, expiresAt, activated: true });
     return { result: true, user: user };
   },
 }

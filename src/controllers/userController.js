@@ -19,23 +19,21 @@ const userController = {
     let where = {};
 
     for(const key in req.query){
-      if(req.query[key] !== undefined){
-        switch(key){
-          case "name":
-          case "role":
-            where[key] = req.query[key];
-            break;
-          case "verified":
-          case "activated":
-            where[key] = req.query[key] === "true";
-            break;
-          case "page":
-            page = parseInt(req.query[key], 10);
-            break;
-          case "limit":
-            limit = parseInt(req.query[key], 10);
-            break;
-        }
+      switch(key){
+        case "name":
+        case "role":
+          where[key] = req.query[key];
+          break;
+        case "verified":
+        case "activated":
+          where[key] = req.query[key] === "true";
+          break;
+        case "page":
+          page = parseInt(req.query[key], 10);
+          break;
+        case "limit":
+          limit = parseInt(req.query[key], 10);
+          break;
       }
     }
 
@@ -113,7 +111,7 @@ const userController = {
 
     if (role !== undefined) {
       if (role === "cashier" && user.suspicious === true) {
-        return res.status(400).json({ error: "A suspicious user cannot be promoted to cashier" });
+        return res.status(403).json({ error: "A suspicious user cannot be promoted to cashier" });
       }
 
       let allowedRoles;
@@ -144,6 +142,7 @@ const userController = {
   },
 
   async updateMyself(req, res){
+
     let updateData = { ...req.body };
 
     if (req.file) {
@@ -152,6 +151,10 @@ const userController = {
 
     if(req.body.birthday !== undefined){
       updateData.birthday = new Date(req.body.birthday);
+    }
+
+    if(Object.keys(updateData).length === 0){
+      return res.status(400).json({ error: "No update fields provided" });
     }
 
     const updatedUser = await userService.updateUserById(req.user.id, updateData);
@@ -179,6 +182,7 @@ const userController = {
   },
 
   async updateMyPassword(req, res){
+    console.log(req.body.old, req.body["new"]);
     const myself = await userService.getUserWithAllPromo(req.user.id);
 
     // see if old matches

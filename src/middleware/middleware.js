@@ -134,6 +134,9 @@ function authorization(allowedRoles) {
 // payload verification
 function validatePayload(expectedFields, reqField) {
   return (req, res, next) => {
+    if (req.method === 'PATCH' && req.path === '/users/me') {
+      console.log(req.body);
+    }
     const actualFields = Object.keys(req[reqField]);
     const requiredFields = expectedFields.required;
     const optionalFields = expectedFields.optional;
