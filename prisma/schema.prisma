@@ -71,5 +71,4 @@ model Event {
   capacity    Int?
   points      Int
   organizerId Int    
-  organizer   User  @relation(fields:[organizerId],references:[id])
 }
