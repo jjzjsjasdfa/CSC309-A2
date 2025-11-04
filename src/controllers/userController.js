@@ -182,7 +182,6 @@ const userController = {
   },
 
   async updateMyPassword(req, res){
-    console.log(req.body.old, req.body["new"]);
     const myself = await userService.getUserWithAllPromo(req.user.id);
 
     // see if old matches

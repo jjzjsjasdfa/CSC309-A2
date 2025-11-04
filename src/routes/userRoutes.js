@@ -2,7 +2,7 @@ const express = require("express")
 const router = express.Router();
 const multer = require("multer");
 const upload = multer({ dest: 'uploads/avatars' });
-const { authenticateToken, authorization, validatePayload, verifyUserId } = require('../middleware/middleware');
+const { authenticateToken, authorization, validatePayload, verifyUserId, debug } = require('../middleware/middleware');
 const userController = require("../controllers/userController");
 
 router.patch(
@@ -15,6 +15,7 @@ router.patch(
 
 router.route("/me")
   .patch(
+    debug,
     authenticateToken,
     authorization(["regular", "cashier", "manager", "superuser"]),
     validatePayload({ optional: ["name", "email", "birthday", "avatar"] }, "body"),
