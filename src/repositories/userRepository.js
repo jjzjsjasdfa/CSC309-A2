@@ -13,11 +13,29 @@ const userRepository = {
     });
   },
 
-  async findMany(where, skip, limit){
+  async findByResetToken(resetToken){
+    return prisma.user.findFirst({
+      where: { resetToken }
+    });
+  },
+
+  async findByEmail(email){
+    return prisma.user.findUnique({
+      where: { email }
+    });
+  },
+
+  async findManyWithSkipAndLimit(where, skip, limit){
     return prisma.user.findMany({
       where: where,
       skip: skip,
       take: limit,
+    });
+  },
+
+  async findMany(where){
+    return prisma.user.findMany({
+      where: where
     });
   },
 
@@ -48,12 +66,20 @@ const userRepository = {
     });
   },
 
-  async updateUser(id, data){
+  async updateUserById(id, data){
     return prisma.user.update({
       where: { id },
       data: data
     });
-  }
+  },
+
+  async updateUserByUtorid(utorid, data){
+    return prisma.user.update({
+      where: { utorid },
+      data: data
+    });
+  },
+
 };
 
 module.exports = userRepository;

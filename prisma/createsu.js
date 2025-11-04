@@ -6,6 +6,8 @@
 'use strict';
 const prisma = require('./prismaClient');
 const bcrypt = require('bcrypt');
+const { v4: uuid } = require('uuid');
+
 async function main() {
   const args = process.argv.slice(2, 5);
 
@@ -36,7 +38,8 @@ async function main() {
       password: hashedPassword,
       role: 'superuser',
       verified: true,
-      // activated: true
+      expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
+      resetToken: uuid(),
     },
   });
 

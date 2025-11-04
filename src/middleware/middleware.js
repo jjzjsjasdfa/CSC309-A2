@@ -1,6 +1,5 @@
-const SECRET_KEY = process.env.SECRET_KEY;
+const SECRET_KEY = process.env.JWT_SECRET;
 const jwt = require('jsonwebtoken');
-const multer = require("multer");
 const userService = require("../services/userService");
 
 
@@ -15,6 +14,7 @@ function validateTypeAndValue(req, res, reqField){
         }
         break;
 
+      case "password":
       // new password
       case "new":
         if (value.length < 8 || value.length > 20) {
@@ -57,9 +57,15 @@ function validateTypeAndValue(req, res, reqField){
         }
         break;
 
+      case "suspicious":
+        if (typeof value === "boolean") break;
+        if (!/^(true|false|null)$/.test(value)) {
+          return res.status(400).json({ error: `${key} field should be boolean or null` });
+        }
+        break;
+
       case "verified":
       case "activated":
-      case "suspicious":
         if (typeof value === "boolean") break;
         if (!/^(true|false)$/.test(value)) {
           return res.status(400).json({ error: `${key} field should be boolean` });
@@ -108,9 +114,8 @@ function authenticateToken(req, res, next) {
       return res.sendStatus(403);
     }
 
-    console.log(userData);
     // put id and role in req.user
-    req.user = { id: userData.id, role: userData.role };
+    req.user = userData;
 
     next();
   });
@@ -120,7 +125,7 @@ function authenticateToken(req, res, next) {
 function authorization(allowedRoles) {
   return (req, res, next) => {
     if(!req.user || !allowedRoles.includes(req.user.role)){
-      res.status(403).json({ error: "Operation is not allowed on this user role" });
+      return res.status(403).json({ error: "Operation is not allowed on this user role" });
     }
     next();
   };
@@ -135,15 +140,19 @@ function validatePayload(expectedFields, reqField) {
     const allFields = requiredFields + optionalFields
 
     // Check for missing fields
-    const missing = requiredFields.filter(f => !actualFields.includes(f));
-    if (missing.length > 0) {
-      return res.status(400).json({ error: `Missing field(s): ${missing.join(', ')}` });
+    if(requiredFields){
+      const missing = requiredFields.filter(f => !actualFields.includes(f) || req[reqField][f] === undefined || req[reqField][f] === null);
+      if (missing.length > 0) {
+        return res.status(400).json({ error: `Missing field(s): ${missing.join(', ')}` });
+      }
     }
 
     // Check for extra fields
-    const extra = actualFields.filter(f => !allFields.includes(f));
-    if (extra.length > 0) {
-      return res.status(400).json({ error: `Unknown field(s): ${extra.join(', ')}` });
+    if(allFields){
+      const extra = actualFields.filter(f => !allFields.includes(f));
+      if (extra.length > 0) {
+        return res.status(400).json({ error: `Unknown field(s): ${extra.join(', ')}` });
+      }
     }
 
     const error = validateTypeAndValue(req, res, reqField);
@@ -156,12 +165,12 @@ function validatePayload(expectedFields, reqField) {
 // verify userId is numerical and user with userId exists
 // specifically used in the route "/user/:userId"
 async function verifyUserId(req, res, next){
-  const id = req.params.userId;
+  const id = parseInt(req.params.userId, 10);
   if(!/^\d+$/.test(id)){
     return res.status(400).json({ error: `userId must be a number`});
   }
 
-  const user = await userService.getUser(id);
+  const user = await userService.getUserById(id);
   if(!user){
     return res.status(404).json({ error: `User with id ${id} cannot be found`});
   }
@@ -169,4 +178,10 @@ async function verifyUserId(req, res, next){
   next();
 }
 
-module.exports = { authenticateToken, authorization, validatePayload, verifyUserId };
+async function debug(req, res, next){
+  console.log(req.originalUrl);
+  console.log(req.body);
+  next();
+}
+
+module.exports = { authenticateToken, authorization, validatePayload, verifyUserId, debug };

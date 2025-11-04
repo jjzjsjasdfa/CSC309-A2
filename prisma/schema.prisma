@@ -40,7 +40,7 @@ model User {
   lastLogin  DateTime?
   verified   Boolean     @default(false)
   activated  Boolean     @default(false)
-  suspicious Boolean     @default(false)
+  suspicious Boolean?
   expiresAt  DateTime
   resetToken String
   avatarUrl  String?

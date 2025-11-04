@@ -27,6 +27,9 @@ app.use(express.json());
 const userRoutes = require("./src/routes/userRoutes");
 app.use("/users", userRoutes);
 
+const authRoutes = require("./src/routes/authRoutes");
+app.use("/auth", authRoutes);
+
 
 const server = app.listen(port, () => {
     console.log(`Server running on port ${port}`);
