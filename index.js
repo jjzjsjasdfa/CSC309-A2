@@ -30,6 +30,9 @@ app.use("/users", userRoutes);
 const authRoutes = require("./src/routes/authRoutes");
 app.use("/auth", authRoutes);
 
+const eventsRoutes = require("./src/routes/eventsRoutes");
+app.use("/events", eventsRoutes);
+
 
 const server = app.listen(port, () => {
     console.log(`Server running on port ${port}`);

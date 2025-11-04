@@ -45,6 +45,9 @@ model User {
   resetToken String
   avatarUrl  String?
   promotions Promotion[] @relation("UserPomotions")
+  organizes  Event[]     @relation("UserOrganizedEvent")
+  guestsEvent Event[]     @relation("UserGuestEvent")
+
 }
 
 model Promotion {
@@ -68,7 +71,13 @@ model Event {
   location    String
   startTime   DateTime
   endTime     DateTime
-  capacity    Int?
-  points      Int
-  organizerId Int    
+  capacity      Int?
+  pointsRemain  Int
+  pointsAwarded Int    @default(0)
+  published   Boolean  @default(false)
+  organizers  User[]   @relation("UserOrganizedEvent")
+  guests      User[]   @relation("UserGuestEvent")
+  numGuests   Int      @default(0)
+
+
 }
