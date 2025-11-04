@@ -55,6 +55,10 @@ function parseAndCheckDates(startTime, endTime, mustHaveBoth = true) {
   }
 }
 
+function isoNoMs(d) {
+  return new Date(d).toISOString().replace('.000Z', 'Z');
+}
+
 function buildUpdateResponse(updated, patch) {
   const out = {
     id: updated.id,
@@ -64,8 +68,8 @@ function buildUpdateResponse(updated, patch) {
 
   const keys = Object.keys(patch);
   if (keys.includes("description")) out.description = updated.description;
-  if (keys.includes("startTime"))   out.startTime   = new Date(updated.startTime).toISOString();
-  if (keys.includes("endTime"))     out.endTime     = new Date(updated.endTime).toISOString();
+  if (keys.includes("startTime"))   out.startTime   = isoNoMs(updated.startTime);
+  if (keys.includes("endTime"))     out.endTime     = isoNoMs(updated.endTime);
   if (keys.includes("minSpending")) out.minSpending = updated.minSpending;
   if (keys.includes("rate"))        out.rate        = updated.rate;
   if (keys.includes("points"))      out.points      = updated.points;
@@ -132,7 +136,7 @@ const promotionService = {
     const results = await promotionRepository.findMany(where, skip, limit, { endTime: "asc" });
     return {
       count: results.length,
-      results: results.map(p => ({ ...p, type: toApiType(p.type) })),
+      results: results.map(p => ({ ...p, type: toApiType(p.type)})),
     };
   },
 
@@ -150,15 +154,14 @@ const promotionService = {
     const existing = await promotionRepository.findById(id);
     if (!existing) { const e = new Error("Promotion not found"); e.code = 404; throw e; }
 
-    const now = nowUtc();                         // <- one 'now' only
-    const coerceNum = (v) => (v === null || v === undefined || v === "") ? null : Number(v);
+    const now = nowUtc();
+    const isMissing = (v) => v === undefined || v === null || v === "";
 
-    // Build patch (strings & type)
     const patch = {};
-    if (data.name        !== undefined) patch.name        = String(data.name);
-    if (data.description !== undefined) patch.description = String(data.description);
+    if (!isMissing(data.name))        patch.name        = String(data.name);
+    if (!isMissing(data.description)) patch.description = String(data.description);
 
-    if (data.type !== undefined) {
+    if (!isMissing(data.type)) {
       const t = String(data.type);
       if (!["automatic", "one-time", "onetime"].includes(t)) {
         const e = new Error("type must be 'automatic' or 'one-time'"); e.code = 400; throw e;
@@ -166,34 +169,34 @@ const promotionService = {
       patch.type = (t === "one-time" ? "onetime" : t);
     }
 
-    // Numbers (non-negative; allow 0)
-    if (data.minSpending !== undefined) {
+    const coerceNum = (v) => Number(v);
+
+    if (!isMissing(data.minSpending)) {
       const n = coerceNum(data.minSpending);
-      if (n === null || Number.isNaN(n) || n < 0) {
+      if (!Number.isFinite(n) || n < 0) {
         const e = new Error("minSpending must be non-negative number"); e.code = 400; throw e;
       }
       patch.minSpending = n;
     }
 
-    if (data.rate !== undefined) {
+    if (!isMissing(data.rate)) {
       const n = coerceNum(data.rate);
-      if (n === null || Number.isNaN(n) || n < 0) {
+      if (!Number.isFinite(n) || n < 0) {
         const e = new Error("rate must be non-negative number"); e.code = 400; throw e;
       }
       patch.rate = n;
     }
 
-    if (data.points !== undefined) {
-      const n = coerceNum(data.points);
-      if (n === null || !Number.isInteger(n) || n < 0) {
+    if (!isMissing(data.points)) {
+      const n = Number(data.points);
+      if (!Number.isInteger(n) || n < 0) {
         const e = new Error("points must be a non-negative integer"); e.code = 400; throw e;
       }
       patch.points = n;
     }
 
-    // Dates (partial allowed)
-    const hasNewStart = data.startTime !== undefined;
-    const hasNewEnd   = data.endTime   !== undefined;
+    const hasNewStart = !isMissing(data.startTime);
+    const hasNewEnd   = !isMissing(data.endTime);
 
     let newStart = hasNewStart ? new Date(data.startTime) : null;
     let newEnd   = hasNewEnd   ? new Date(data.endTime)   : null;
@@ -201,31 +204,17 @@ const promotionService = {
     if (hasNewStart && Number.isNaN(newStart.getTime())) { const e = new Error("Invalid startTime"); e.code = 400; throw e; }
     if (hasNewEnd   && Number.isNaN(newEnd.getTime()))   { const e = new Error("Invalid endTime");   e.code = 400; throw e; }
 
-    // New times cannot be in the past
     if (hasNewStart && newStart < now) { const e = new Error("startTime cannot be in the past"); e.code = 400; throw e; }
     if (hasNewEnd   && newEnd   < now) { const e = new Error("endTime cannot be in the past");   e.code = 400; throw e; }
 
-    // Spec time rules based on ORIGINAL window
-    const originalStart   = new Date(existing.startTime);
-    const originalEnd     = new Date(existing.endTime);
-    const originalStarted = now >= originalStart;
-    const originalEnded   = now >= originalEnd;
-
-    const touchingLockedFields =
-      (data.name        !== undefined) ||
-      (data.description !== undefined) ||
-      (data.type        !== undefined) ||
-      (data.startTime   !== undefined) ||
-      (data.minSpending !== undefined) ||
-      (data.rate        !== undefined) ||
-      (data.points      !== undefined);
-
+    const originalStart = new Date(existing.startTime);
+    const originalEnd   = new Date(existing.endTime);
+    const originalEnded = now >= originalEnd;
 
     if (originalEnded && hasNewEnd) {
       const e = new Error("Cannot update endTime after original end time has passed"); e.code = 400; throw e;
     }
 
-    // Maintain start < end with effective pair
     const effectiveStart = hasNewStart ? newStart : originalStart;
     const effectiveEnd   = hasNewEnd   ? newEnd   : originalEnd;
     if (effectiveEnd <= effectiveStart) {
@@ -235,7 +224,6 @@ const promotionService = {
     if (hasNewStart) patch.startTime = newStart;
     if (hasNewEnd)   patch.endTime   = newEnd;
 
-    // Nothing to change → minimal envelope
     if (Object.keys(patch).length === 0) {
       return {
         id: existing.id,
@@ -245,8 +233,10 @@ const promotionService = {
     }
 
     const updated = await promotionRepository.update(id, patch);
+
     return buildUpdateResponse(updated, patch);
   },
+
 
   async deletePromotion(id) {
     const p = await promotionRepository.findById(id);
