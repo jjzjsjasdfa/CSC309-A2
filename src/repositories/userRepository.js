@@ -46,24 +46,49 @@ const userRepository = {
   },
 
   async findByIdIncludeAvailablePromo(id){
-    return prisma.user.findUnique({
-      where: { id },
-      include: {
-        promotions: {
-          available: true,
-          one_time: true
-        }
+    const now = new Date();
+
+    const activePromos = await prisma.promotion.findMany({
+      where: {
+        startTime: { lte: now },
+        endTime: { gt: now },
       }
     });
+
+    const used = await prisma.promotionUsage.findMany({
+      where: { userId: id },
+      select: { promotionId: true }
+    });
+    const usedIds = new Set(used.map(u => u.promotionId));
+
+    const available = activePromos.filter(p => !(p.type === 'onetime' && usedIds.has(p.id)));
+
+    const user = await prisma.user.findUnique({
+      where: { id }
+    });
+
+    return {
+      ...user,
+      promotions: available
+    };
   },
 
   async findByIdIncludeAllPromo(id){
-    return prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id },
       include: {
-        promotions: true
+        promotionUsages: {
+          include: { promotion: true }
+        }
       }
     });
+
+    if (!user) return null;
+
+    return {
+      ...user,
+      promotions: user.promotionUsages.map(u => u.promotion)
+    };
   },
 
   async updateUserById(id, data){
