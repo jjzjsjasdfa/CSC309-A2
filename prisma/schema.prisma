@@ -44,6 +44,8 @@ model User {
   expiresAt       DateTime
   resetToken      String
   avatarUrl       String?
+  organizes       Event[]     @relation("UserOrganizedEvent")
+  guestsEvent     Event[]     @relation("UserGuestEvent")
   promotionUsages PromotionUsage[]
 }
 
@@ -72,6 +74,21 @@ model PromotionUsage {
   @@unique([userId, promotionId])
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 model Event {
   id          Int      @id @default(autoincrement())
   name        String
@@ -79,6 +96,13 @@ model Event {
   location    String
   startTime   DateTime
   endTime     DateTime
-  capacity    Int?
-  points      Int
+  capacity      Int?
+  pointsRemain  Int
+  pointsAwarded Int    @default(0)
+  published   Boolean  @default(false)
+  organizers  User[]   @relation("UserOrganizedEvent")
+  guests      User[]   @relation("UserGuestEvent")
+  numGuests   Int      @default(0)
+
+
 }

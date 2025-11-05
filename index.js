@@ -30,6 +30,9 @@ app.use("/users", userRoutes);
 const authRoutes = require("./src/routes/authRoutes");
 app.use("/auth", authRoutes);
 
+const eventsRoutes = require("./src/routes/eventsRoutes");
+app.use("/events", eventsRoutes);
+
 const promotionRoutes = require("./src/routes/promotionRoutes");
 app.use("/promotions", promotionRoutes);
 
