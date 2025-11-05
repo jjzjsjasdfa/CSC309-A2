@@ -144,7 +144,7 @@ function authenticateToken(req, res, next) {
 
   jwt.verify(token, SECRET_KEY, (err, userData) => {
     if (err) {
-      return res.sendStatus(403);
+      return res.sendStatus(401);
     }
 
     // put id and role in req.user
