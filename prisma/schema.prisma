@@ -44,9 +44,9 @@ model User {
   expiresAt       DateTime
   resetToken      String
   avatarUrl       String?
+  organizes       Event[]     @relation("UserOrganizedEvent")
+  guestsEvent     Event[]     @relation("UserGuestEvent")
   promotionUsages PromotionUsage[]
-  organizes  Event[]     @relation("UserOrganizedEvent")
-  guestsEvent Event[]     @relation("UserGuestEvent")
 }
 
 model Promotion {
@@ -73,6 +73,21 @@ model PromotionUsage {
 
   @@unique([userId, promotionId])
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 model Event {
   id          Int      @id @default(autoincrement())
