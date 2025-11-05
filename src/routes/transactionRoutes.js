@@ -1,15 +1,16 @@
 const express = require("express");
 const router = express.Router();
+const transactionController = require("../controllers/transactionController");
 
 const {authenticateToken, authorization,validatePayload,
 } = require("../middleware/middleware");
 
-const transactionController = require("../controllers/transactionController");
+
 
 router.post( "/", authenticateToken, authorization(["cashier", "manager", "superuser"]), 
     (req, res, next) => {
         const type = req.body.type;
-        if (type !== "purchase" && t !== "adjustment") {
+        if (type !== "purchase" && type !== "adjustment") {
             return res.status(400).json({ error: "Type Error" });
         }
 

@@ -47,14 +47,16 @@ model User {
   organizes       Event[]     @relation("UserOrganizedEvent")
   guestsEvent     Event[]     @relation("UserGuestEvent")
   promotionUsages PromotionUsage[]
+  transactions  Transaction[]
 }
 
 model Transaction {
   id          Int      @id @default(autoincrement())
   type        TransactionType
   utorid      String
+  user        User @relation(fields: [utorid], references:[utorid])
   spent       Float
-  promoIds    Int[]?
+  promoIds    Promotion[] @relation("TransactionPromotion")
   earned      Int?
   remark      String?
   suspicious  Boolean @default(false)
@@ -72,6 +74,7 @@ model Promotion {
   rate        Float?
   points      Int?
   usages      PromotionUsage[]
+  transactions Transaction[] @relation("TransactionPromotion")
 }
 
 model PromotionUsage {
@@ -85,21 +88,6 @@ model PromotionUsage {
 
   @@unique([userId, promotionId])
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 model Event {
   id          Int      @id @default(autoincrement())
