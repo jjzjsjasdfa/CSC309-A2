@@ -6,6 +6,10 @@ const userService = require("../services/userService");
 function validateTypeAndValue(req, res, reqField){
   for (const key in req[reqField]) {
     const value = req[reqField][key];
+    if (value === null){
+      req[reqField][key] = undefined;
+      continue;
+    }
 
     switch (key) {
       case "utorid":
@@ -58,12 +62,6 @@ function validateTypeAndValue(req, res, reqField){
         break;
 
       case "suspicious":
-        if (typeof value === "boolean") break;
-        if (!/^(true|false|null)$/.test(value)) {
-          return res.status(400).json({ error: `${key} field should be boolean or null` });
-        }
-        break;
-
       case "verified":
       case "activated":
         if (typeof value === "boolean") break;
@@ -73,9 +71,18 @@ function validateTypeAndValue(req, res, reqField){
         break;
 
       case "birthday":
-        if(!/^\d{4}-\d{2}-\d{2}$/.test(value) || !isNaN(new Date(value).getTime())){
+        // check the format
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(value) || isNaN(new Date(value).getTime())){
           return res.status(400).json({ error: `${key} field is not a valid date` });
         }
+
+        // check the date is valid
+        const [y, m, d] = req.body.birthday.split('-').map(Number);
+        const date = new Date(y, m - 1, d);
+        if(date.getFullYear() !== y || date.getMonth() + 1 !== m || date.getDate() !== d){
+          return res.status(400).json({ error: `${key} field is not a valid date` });
+        }
+
         break;
 
       case "avatar":

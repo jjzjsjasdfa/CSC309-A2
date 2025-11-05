@@ -15,7 +15,6 @@ router.patch(
 
 router.route("/me")
   .patch(
-    debug,
     authenticateToken,
     authorization(["regular", "cashier", "manager", "superuser"]),
     validatePayload({ optional: ["name", "email", "birthday", "avatar"] }, "body"),
@@ -38,7 +37,6 @@ router.route("/:userId")
     userController.getUser
   )
   .patch(
-    debug,
     authenticateToken,
     authorization(["manager", "superuser"]),
     verifyUserId,
