@@ -92,40 +92,45 @@ const userController = {
 
   async updateUser(req, res) {
     const id = parseInt(req.params.userId, 10);
-    const { email, verified, suspicious, role } = req.body;
-    const updateData = {};
     const user = await userService.getUserById(id);
+    let updateData = {};
 
-    if (email !== undefined){
-      updateData.email = email;
+    if(req.body.email !== undefined){
+      updateData.email = req.body.email;
     }
 
     // don't care when verified === false
-    if (verified !== undefined && verified === true) {
-      updateData.verified = verified;
+    if (req.body.verified !== undefined) {
+      if (!/^(true)$/.test(req.body.verified)) {
+        return res.status(400).json({ error: "verified field should be boolean" });
+      }
+      updateData.verified = req.body.verified;
     }
 
-    if (suspicious !== undefined) {
-      updateData.suspicious = suspicious;
+    if (req.body.suspicious !== undefined) {
+      updateData.suspicious = req.body.suspicious;
     }
 
-    if (role !== undefined) {
-      if (role === "cashier" && user.suspicious === true) {
-        return res.status(403).json({ error: "A suspicious user cannot be promoted to cashier" });
+    if (req.body.role !== undefined) {
+      // suspicious user cannot be promoted to cashier
+      if (req.body.role === "cashier" && user.suspicious === true) {
+        return res.status(400).json({ error: "A suspicious user cannot be promoted to cashier" });
       }
 
       let allowedRoles;
       if(req.user.role === "manager"){
         allowedRoles = ["regular", "cashier"];
-      }else{
+      }
+      // superuser can promote anyone
+      else{
         allowedRoles = ["regular", "cashier", "manager", "superuser"];
       }
 
-      if (!allowedRoles.includes(role)) {
-        return res.status(403).json({ error: `You are not allowed to promote someone to ${role}` });
+      if (!allowedRoles.includes(req.body.role)) {
+        return res.status(403).json({ error: `You are not allowed to promote someone to ${req.body.role}` });
       }
 
-      updateData.role = role;
+      updateData.role = req.body.role;
     }
 
     if (Object.keys(updateData).length === 0) {
@@ -142,23 +147,33 @@ const userController = {
   },
 
   async updateMyself(req, res){
+    let updateData = {};
 
-    let updateData = { ...req.body };
+    if(req.body.name !== undefined){
+      updateData.name = req.body.name;
+    }
 
-    if (req.file) {
-      updateData.avatarUrl = '/uploads/avatars/' + req.file.filename;
+    if(req.body.email !== undefined){
+      updateData.email = req.body.email;
     }
 
     if(req.body.birthday !== undefined){
-      updateData.birthday = new Date(req.body.birthday);
+      const [y, m, d] = req.body.birthday.split('-').map(Number);
+      updateData.birthday = new Date(y, m - 1, d);
+    }
+
+    if (req.file !== undefined) {
+      updateData.avatarUrl = '/uploads/avatars/' + req.file.filename;
     }
 
     if(Object.keys(updateData).length === 0){
       return res.status(400).json({ error: "No update fields provided" });
     }
 
+    updateData.verified = true;
+
     const updatedUser = await userService.updateUserById(req.user.id, updateData);
-    const response = {
+    return res.status(200).json({
       id: updatedUser.id,
       utorid: updatedUser.utorid,
       name: updatedUser.name,
@@ -170,9 +185,7 @@ const userController = {
       lastLogin: updatedUser.lastLogin,
       verified: updatedUser.verified,
       avatarUrl: updatedUser.avatarUrl
-    };
-
-    return res.status(200).json(response);
+    });
   },
 
   async getMyself(req, res){
