@@ -36,6 +36,9 @@ app.use("/events", eventsRoutes);
 const promotionRoutes = require("./src/routes/promotionRoutes");
 app.use("/promotions", promotionRoutes);
 
+const transactionRoutes = require("./src/routes/transactionRoutes");
+app.use("/transacations", transactionRoutes);
+
 const server = app.listen(port, () => {
     console.log(`Server running on port ${port}`);
 });
