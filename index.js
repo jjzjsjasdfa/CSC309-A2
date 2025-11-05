@@ -30,6 +30,8 @@ app.use("/users", userRoutes);
 const authRoutes = require("./src/routes/authRoutes");
 app.use("/auth", authRoutes);
 
+const promotionRoutes = require("./src/routes/promotionRoutes");
+app.use("/promotions", promotionRoutes);
 
 const server = app.listen(port, () => {
     console.log(`Server running on port ${port}`);
