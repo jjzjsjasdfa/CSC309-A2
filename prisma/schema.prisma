@@ -49,6 +49,18 @@ model User {
   promotionUsages PromotionUsage[]
 }
 
+model Transaction {
+  id          Int      @id @default(autoincrement())
+  type        TransactionType
+  utorid      String
+  spent       Float
+  promoIds    Int[]?
+  earned      Int?
+  remark      String?
+  suspicious  Boolean @default(false)
+  amount      Int 
+}
+
 model Promotion {
   id          Int              @id @default(autoincrement())
   name        String
