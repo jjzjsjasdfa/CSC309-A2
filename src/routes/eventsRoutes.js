@@ -3,6 +3,7 @@ const router = express.Router();
 const eventsController = require("../controllers/eventsController");
 
 const { authenticateToken, authorization,organizerAuthorization, validatePayload, verifyUserId, debug } = require('../middleware/middleware');
+const eventController = require("../controllers/eventsController");
 
 router.route("/")
 .post(
@@ -47,5 +48,10 @@ router.route("/:eventId")
 .get(authenticateToken, 
     authorization(["regular","cashier","manager", "superuser"]),
     eventsController.getEvent)
+.patch(
+    authenticateToken,
+    organizerAuthorization(["manager", "superuser"]),
+    eventController.updateEvent
+)
 
 module.exports = router;
