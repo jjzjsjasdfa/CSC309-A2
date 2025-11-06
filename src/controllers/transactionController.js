@@ -88,6 +88,7 @@ const transactionController = {
 
             if (createdByUser.suspicious) {
               transactionData.suspicious = true;
+              transactionData.amount = earned;
               transactionData.earned = 0;
             }
 
@@ -281,7 +282,7 @@ const transactionController = {
   },
 
     async getTransactionById(req, res) {
-        const id = parseInt(req.params.id, 10);
+        const id = parseInt(req.params.transactionId, 10);
         if (Number.isNaN(id)) return res.status(400).json({ error: "invalid id" });
 
         const transaction = await transactionService.getById(id);
@@ -290,14 +291,15 @@ const transactionController = {
         return res.status(200).json({ id: transaction.id, utorid: transaction.utorid, type: transaction.type,
             spent: transaction.spent ?? undefined, amount: transaction.amount ?? transaction.earned ?? 0,
             promotionIds: transaction.promotions?.map(p => p.id) ?? [], suspicious: transaction.suspicious,
-            remark: transaction.remark ?? "", createdBy: transaction.createdBy
+            remark: transaction.remark ?? "", createdBy: transaction.createdBy, relatedId: transaction.relatedId
         });
     },
 
     async setSuspicious(req, res) {
-        const id = parseInt(req.params.id, 10);
+        const id = parseInt(req.params.transactionId, 10);
         if (Number.isNaN(id)) return res.status(400).json({ error: "invalid id" });
-            const { suspicious } = req.body;
+
+        const { suspicious } = req.body;
         if (typeof suspicious !== "boolean") return res.status(400).json({ error: "suspicious type error" });
 
         const transaction = await transactionService.getById(id);

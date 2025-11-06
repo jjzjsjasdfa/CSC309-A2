@@ -30,13 +30,13 @@ router.route("/")
   transactionController.getTransactions
   );
 
-router.get("/:id",
+router.get("/:transactionId",
     authenticateToken,
     authorization(["manager", "superuser"]), 
     transactionController.getTransactionById
  );
 
-router.patch("/:id/suspicious",
+router.patch("/:transactionId/suspicious",
     authenticateToken,
     authorization(["manager", "superuser"]),
     validatePayload({ required: ["suspicious"] }, "body"),
