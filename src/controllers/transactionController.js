@@ -123,7 +123,7 @@ const transactionController = {
             }
             transactionData.amount = amount;
 
-            const oldTransaction = transactionService.findById(relatedId);
+            const oldTransaction = await transactionService.findById(relatedId);
             if (!oldTransaction) {
                 return res.status(404).json({ error: "related transaction not found" });
             }
