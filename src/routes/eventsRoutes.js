@@ -64,7 +64,7 @@ router.route("/:eventId/guests")
 router.route("/:eventId/guests/:userId")
 .delete(
     authenticateToken,
-    Authorization(["manager", "superuser"]),
+    authorization(["manager", "superuser"]),
     eventsController.kickGuest
 )
 
