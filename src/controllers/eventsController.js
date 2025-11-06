@@ -141,6 +141,10 @@ const eventController = {
         return res.status(410).json({ message: "event has ended" });
       }
 
+      if (event.guests?.some(g => g.id === user.id)) {
+        return res.status(400).json({ error: "user is already a guest of this event" });
+      }
+
       for (let guest of event.guests) {
         if (guest.id === user.id) {
           return res.status(400).json({ 
@@ -379,22 +383,27 @@ const eventController = {
   },
 
   async registerGuest(req, res) {
-    try{
-      const eid = Number(req,params,eventId);
-      if (!Number.isInteger(eid) || eid <= 0) return res.status(404).json({message:"no such event"});
-      const {utorid} = req.body || {};
+    try {
+      const eid = Number(req.params.eventId);
+      if (!Number.isInteger(eid) || eid <= 0) return res.status(404).json({ message: "no such event" });
+
+      const { utorid } = req.body || {};
       if (!utorid) return res.status(400).json({ error: "utorid is required" });
+
       const event = await eventsService.getEventById(eid);
       if (!event) return res.status(404).json({ message: "no such event" });
 
       const role = req.user?.role;
       const isMgr = role === "manager" || role === "superuser";
-      if (!isMgr && !event.published) {
+      const isOrganizerCaller = await eventsService.checkOrganizer(req.user?.id, eid);
+      if (!isMgr && isOrganizerCaller && !event.published) {
         return res.status(404).json({ message: "event not found" });
       }
 
-      if (new Date(event.endTime) <= new Date()) {
-        return res.status(410).json({ message: "event has ended" });
+      const now = new Date();
+      const numGuestsNow = event._count?.guests ?? (event.guests ? event.guests.length : 0);
+      if (new Date(event.endTime) <= now || (event.capacity != null && numGuestsNow >= event.capacity)) {
+        return res.status(410).json({ message: "event is full or has ended" });
       }
 
       const user = await userService.getUserByUtorid(utorid);
@@ -408,21 +417,19 @@ const eventController = {
         return res.status(400).json({ error: "user is already a guest" });
       }
 
-      const numGuests = Array.isArray(event.guests) ? event.guests.length : 0;
-      if (event.capacity != null && numGuests >= event.capacity) {
-        return res.status(410).json({ message: "event is full" });
-      }
-
       await eventsService.addGuest(user.id, eid);
       const updated = await eventsService.getEventById(eid);
+      const numGuests = updated._count?.guests ?? (updated.guests ? updated.guests.length : numGuestsNow + 1);
 
-      return res.status(201).json({
+      const body = {
         id: updated.id,
         name: updated.name,
         location: updated.location,
         guestAdded: { id: user.id, utorid: user.utorid, name: user.name },
-        numGuests: updated._count.guests
-      });
+        numGuests
+      };
+
+      return res.status(200).json(body);
     } catch (err) {
       return res.status(400).json({ error: err.message });
     }
