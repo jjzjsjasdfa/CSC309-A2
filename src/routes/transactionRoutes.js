@@ -23,4 +23,18 @@ router.route("/")
     "query"),
   transactionController.getTransactions
   );
+
+router.get("/:id",
+    authenticateToken,
+    authorization(["manager", "superuser"]), 
+    transactionController.getTransactionById
+ );
+
+router.patch("/:id/suspicious",
+    authenticateToken,
+    authorization(["manager", "superuser"]),
+    validatePayload({ required: ["suspicious"] }, "body"),
+    transactionController.setSuspicious
+ );
+
 module.exports = router;
