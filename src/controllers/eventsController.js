@@ -1,18 +1,25 @@
 const eventsService = require("../services/eventsService.js");
-const { Prisma, PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
 
 const eventController = {
   async register(req, res) {
     try {
       const { name: n, description: d, location: l, startTime: sT, endTime: eT, points: p, capacity: c} = req.body;
       const newEvent = await eventsService.registerEvent(n,d,l,sT,eT,p,c);
-      const { id, name, description, location, startTime, endTime, capacity, pointsRemain, pointsAwarded,published,
-        organizers,guests
-       } = newEvent;
-
-      return res.status(201).json({ id, name, description, location, startTime, endTime, capacity, pointsRemain, 
-        pointsAwarded, published, organizers, guests});
+      const out = {
+        id: newEvent.id,
+        name: newEvent.n,
+        description: newEvent.d,
+        location: newEvent.l,
+        startTime: newEvent.sT,
+        endTime: newEvent.eT,
+        capacity: newEvent.c ?? null,
+        pointsRemain: newEvent.pointsRemain,
+        pointsAwarded: newEvent.pointsAwarded,
+        published: newEvent.published,
+        organizers: newEvent.organizers,
+        guests: newEvent.guests
+      };
+      return res.status(201).json(out);
     } catch (error) {
       return res.status(400).json({ error: error.message });
     }
@@ -20,104 +27,49 @@ const eventController = {
 
   async getEvents(req, res){
     try {
-    let page, limit;
-    let where = {};
-    const present = new Date();
-
-    //let postPublished = (req.user.role === "manager" || req.user.role === "superuser")
-
-    for(const key in req.query){
-      switch(key){
-        case "name":
-          where[key] = req.query[key];
-          break;
-        case "location":
-          where[key] = req.query[key];
-          break;
-        case "page":
-          page = parseInt(req.query[key], 10);
-          break;
-        case "limit":
-          limit = parseInt(req.query[key], 10);
-          break;
-        case "started":
-          if (req.query[key] === "true") where.startTime = { lte: present };
-          else if (req.query[key] === "false") where.startTime = { gt: present };
-          break;
-        case "ended":
-          if (req.query[key] === "true") where.endTime = { lte: present };
-          else if (req.query[key] === "false") where.endTime = { gt: present };
-          break;
-          /*
-        case "published":
-          if (postPublished) {
-            where.published = (req.query[key] === 'true');
-          }
-          break;*/
+      const present = new Date();
+      let page = req.query.page ? parseInt(req.query.page, 10) : 1;
+      let limit = req.query.limit ? parseInt(req.query.limit, 10) : 10;
+      if (!Number.isInteger(page) || page < 1 || !Number.isInteger(limit) || limit < 1) {
+        return res.status(400).json({error: "page and limit must be positive integers"});
       }
-    }
 
-    if(req.user.role === "regular"){
-      where.published = "true";
-    }
-    
+          const where = {};
+      if (req.query.name) where.name = {contains: req.query.name, mode: "insensitive"};
+      if (req.query.location) where.location = {contains: req.query.location, mode: "insensitive"};
+      if (req.user.role === "regular") where.published = true;
 
-    if(page === undefined){
-      page = 1;
-    }
-    if(limit === undefined){
-      limit = 10;
-    }
-    if(page < 1 || limit < 1){
-      return res.status(400).json({ error: "page and limit must be positive integers" });
-    }
+      if (req.query.started === "true") where.startTime = {lte: present};
+      if (req.query.started === "false") where.startTime = {gt:  present};
+      if (req.query.ended === "true")  where.endTime = {lte: present};
+      if (req.query.ended === "false") where.endTime = {gt: present};
 
+      let all = await eventsService.getEvents(where);
 
+      if (req.query.showFull !== 'true') {
+        all = all.filter(ev => (ev.capacity == null) || (ev._count.guests < ev.capacity));
+      }
 
-    let events = await eventsService.getEvents(where);
+      const count = all.length;
 
-    if (req.query.showFull !== 'true') {
-      events = events.filter(event => event.capacity === null || event.numGuests < event.capacity);
-    }
+      const start = (page - 1) * limit;
+      const paged = all.slice(start, start + limit);
 
-    const count = events.length;
-    if(!events){
-      return res.status(200).json({ message: "no events found" });
-    }
-    const skip = (page - 1) * limit;
-    events = await eventsService.getEventsWithSkipAndLimit(where, skip, limit);
-    if(!events){
-      return res.status(200).json({ message: "no events in this page" });
-    }
+      const results = paged.map(ev => ({
+        id: ev.id,
+        name: ev.name,
+        location: ev.location,
+        startTime: ev.startTime,
+        endTime: ev.endTime,
+        capacity: ev.capacity ?? null,
+        numGuests: ev._count.guests
+      }));
 
-    /*
-    const results = postPublished ? events.map(
-      ({id, name, location, startTime, endTime, capacity, numGuests, published}) =>
-        ({id, name, location, startTime, endTime, capacity, numGuests, published}
-      )
-    ) :events.map(
-      ({id, name, location, startTime, endTime, capacity, numGuests}) =>
-        ({id, name, location, startTime, endTime, capacity, numGuests}
-      )
-    );*/
-
-    const results = events.map(
-      ({id, name, location, startTime, endTime, capacity, numGuests}) =>
-        ({id, name, location, startTime, endTime, capacity, numGuests}
-      )
-    );
-
-    return res.status(200).json({
-      count: count,
-      results: results,
-    });
-  }
-
-  catch (error) {
+      return res.status(200).json({ count, results });
+    } catch (error) {
       return res.status(400).json({ error: error.message });
     }
   }
-
 };
 
 module.exports = eventController;
