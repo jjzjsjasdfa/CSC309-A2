@@ -12,5 +12,24 @@ const eventsService = {
     async getEvents(where){
     return await eventsRepository.findMany(where);
   },
+  async addOrganizer(uid, eid){
+    return await eventsRepository.addIntoOrganizers(uid, eid);
+  },
+
+  async getEventById(eid){
+    return await eventsRepository.findById(eid);
+  
+  },
+  async deleteOrganizer(uid,eid) {
+    return await eventsRepository.deleteOrganizer(uid,eid);
+  },
+
+  async checkOrganizer(uid,eid){
+    return await eventsRepository.checkIfOrganizer(uid,eid);
+  },
+
+  async deleteEventById(id){
+    return await eventsRepository.delete(id);
+  }
 }
 module.exports = eventsService;

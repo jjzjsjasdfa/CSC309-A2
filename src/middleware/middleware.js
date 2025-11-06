@@ -1,6 +1,7 @@
 const SECRET_KEY = process.env.JWT_SECRET;
 const jwt = require('jsonwebtoken');
 const userService = require("../services/userService");
+const eventsService = require("../services/eventsService");
 
 
 function validateTypeAndValue(req, res, reqField){
@@ -188,6 +189,54 @@ function authorization(allowedRoles) {
   };
 }
 
+function organizerAuthorization(allowedRoles) {
+  return async (req, res, next) => {
+    try{
+    if(!req.user){
+      return res.status(403).json({ error: "Operation is not allowed on this user role" });
+    }
+    let uid = req.user.id;
+
+    console.log("checking event");
+    let eid = parseInt(req.params.eventId, 10);
+
+    if(allowedRoles.includes(req.user.role)) {
+      return next();
+    }
+    console.log("checking user");
+    
+    let event = await eventsService.getEventById(eid);
+    if(event === null){
+      return res.status(400).json({ message: "no such event" });
+    }
+    let user = await userService.getUserByUtorid(utorid);
+    if (user === null) {
+      return res.status(400).json({ message: "no such user of Utorid" });
+    }
+
+    let isOrganizer = await eventsService.checkOrganizer(user.id,eid);
+    console.log("value of isOrganizer is: " + isOrganizer);
+    if(isOrganizer) {
+      return res.status(400).json({message: "user is an organizer of this event"});
+    }
+
+    if (user === null) {
+      return res.status(404).json({ message: "no such user of Utorid" });
+    }
+
+    if(!allowedRoles.includes(req.user.role))
+    {
+      return res.status(403).json({ error: "Operation is not allowed on this user role" });
+    }
+    
+    next();
+  }catch(error){
+    return res.status(400).json({ error: error.message });
+  }
+  };
+}
+
+
 // payload verification
 function validatePayload(expectedFields, reqField) {
   return (req, res, next) => {
@@ -241,4 +290,4 @@ async function debug(req, res, next){
   next();
 }
 
-module.exports = { authenticateToken, authorization, validatePayload, verifyUserId, debug };
+module.exports = { authenticateToken, authorization, organizerAuthorization, validatePayload, verifyUserId, debug,  };

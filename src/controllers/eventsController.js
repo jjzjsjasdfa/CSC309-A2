@@ -1,4 +1,5 @@
 const eventsService = require("../services/eventsService.js");
+const userService = require("../services/userService.js");
 const { Prisma, PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
@@ -116,8 +117,107 @@ const eventController = {
   catch (error) {
       return res.status(400).json({ error: error.message });
     }
-  }
+  },
+  
+  async organizeEvent(req, res){
+   try {
+    let eid = parseInt(req.params.eventId, 10);
 
+    if (isNaN(eid)) {
+      return res.status(404).json({ message: "no such event" });
+    }
+    let { utorid } = req.body;
+
+    let user = await userService.getUserByUtorid(utorid);
+    if(user === null){
+      return res.status(404).json({ message: "no such user of Utorid" });
+    }
+
+    let event = await eventsService.getEventById(eid);
+    if(event === null){
+      return res.status(404).json({ message: "no such event" });
+    }
+
+    if(new Date(event.endTime) < new Date()){
+      return res.status(410).json({ message: "event has ended" });
+    }
+
+    for (let guest of event.guests) {
+      if (guest.id === user.id) {
+        return res.status(400).json({ 
+          error: "User is already a guest of this event." 
+        });
+      }
+    }
+
+    await eventsService.addOrganizer(user.id, event.id);
+    let updatedEvent = await eventsService.getEventById(eid);
+    let { id, name, location, organizers } = updatedEvent;
+    return res.status(201).json({ 
+      id, name, location, organizers
+    });
+
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+    
+  },
+  async kickOrganizer(req, res){
+    try {
+      let eid = parseInt(req.params.eventId, 10);
+      let uid = parseInt(req.params.userId, 10);
+      await eventsService.deleteOrganizer(uid, eid);
+      return res.status(204).send();
+    } catch (error) {
+      return res.status(400).json({ error: error.message });
+    }
+  },
+
+  async deleteEvent(req,res){
+    try {
+      let eid = parseInt(req.params.eventId, 10);
+      let event = await eventsService.getEventById(eid);
+      if(Boolean(event.published) === true) {
+        return res.status(400).json({ message: "event already published" });
+      }
+      await eventsService.deleteEventById(eid);
+      return res.status(204).send();
+    }
+    catch(error){
+      return res.status(400).json({ error: error.message });
+    }
+  },
+
+  async getEvent(req,res){
+    try {
+      let eid = parseInt(req.params.eventId, 10);
+      let event = await eventsService.getEventById(eid);
+      if(event === null){
+        return res.status(404).json({ message: "no such event" });
+      }
+      let isOrganizer = await eventsService.checkOrganizer(req.user.id,eid);
+      if (isOrganizer || req.user.role === "manager" || req.user.role === "superuser") {
+        const { id, name, description, location, startTime, endTime, capacity, 
+          pointsRemain, pointsAwarded, published, organizers, guests
+        } = event;
+        return res.status(200).json({ id, name, description, location, startTime, endTime, capacity, 
+        pointsRemain, pointsAwarded, published, organizers, guests});
+      }
+
+      
+      if(Boolean(event.published) === false) {
+        return res.status(404).json({ message: "event not found" });
+      }
+      const { id, name, description, location, startTime, endTime, capacity, organizers,numGuests
+      } = event;
+      return res.status(200).json({ id, name, description, location, startTime, endTime, capacity, 
+        organizers, numGuests
+      });
+    }
+    catch(error){
+      return res.status(400).json({ error: error.message });
+    }
+  }
 };
 
 module.exports = eventController;
