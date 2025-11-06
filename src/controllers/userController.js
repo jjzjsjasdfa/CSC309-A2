@@ -1,5 +1,6 @@
 const userService = require("../services/userService");
 const bcrypt = require('bcrypt');
+const transactionService = require("../services/transactionService");
 
 const userController = {
   async register(req, res) {
@@ -173,19 +174,32 @@ const userController = {
     updateData.verified = true;
 
     const updatedUser = await userService.updateUserById(req.user.id, updateData);
-    return res.status(200).json({
+    const response = {
       id: updatedUser.id,
       utorid: updatedUser.utorid,
       name: updatedUser.name,
       email: updatedUser.email,
-      birthday: updatedUser.birthday,
       role: updatedUser.role,
       points: updatedUser.points,
       createdAt: updatedUser.createdAt,
       lastLogin: updatedUser.lastLogin,
       verified: updatedUser.verified,
       avatarUrl: updatedUser.avatarUrl
-    });
+    };
+
+    const birthday = updatedUser.birthday;
+
+    let year = birthday.getFullYear().toString();
+    year = "0".repeat(4 - year.length) + year;
+
+    let month = (birthday.getMonth() + 1).toString();
+    month = "0".repeat(2 - month.length) + month;
+
+    let day = birthday.getDate().toString();
+    day = "0".repeat(2 - day.length) + day;
+
+    response.birthday = year + '-' + month + '-' + day;
+    return res.status(200).json(response);
   },
 
   async getMyself(req, res){
@@ -206,7 +220,195 @@ const userController = {
     const hashedPassword = await bcrypt.hash(req.body["new"], 10);
     const updated = await userService.updateUserById(req.user.id, { password: hashedPassword });
     return res.status(200).json({ message: "password updated" });
+  },
+
+  async transferPoints(req, res){
+    const { type, amount, remark } = req.body;
+    const userId = parseInt(req.params.userId, 10);
+    let senderData = {};
+    let receiverData = {};
+
+    // validate the payloads
+    if(type !== "transfer"){
+      return res.status(400).json({ error: "type should be 'transfer'" });
+    }
+    senderData.type = "transfer";
+    receiverData.type = "transfer";
+
+    if(typeof amount !== "number" || amount < 0){
+      return res.status(400).json({ error: "amount should be a positive integer" });
+    }
+    senderData.amount = 0 - amount;
+    receiverData.amount = amount;
+
+    if(remark === undefined){
+      senderData.remark = "";
+      receiverData.remark = "";
+    } else{
+      senderData.remark = remark;
+      receiverData.remark = remark;
+    }
+
+    const targetUser = await userService.getUserById(userId);
+    if(!targetUser){
+      return res.status(404).json({ error: "target user not found" });
+    }
+    senderData.relatedId = targetUser.id;
+    receiverData.utorid = targetUser.utorid;
+
+
+    const sourceUser = await userService.getUserById(req.user.id);
+    if(sourceUser.points < amount){
+      return res.status(400).json({ error: "insufficient points" });
+    }else if(!sourceUser.verified){
+      return res.status(403).json({ error: "you need to verify your account before transferring points" });
+    }else if(sourceUser.id === targetUser.id){
+      return res.status(400).json({ error: "you cannot transfer points to yourself" });
+    }
+    senderData.utorid = sourceUser.utorid;
+    receiverData.relatedId = sourceUser.id;
+
+    senderData.createdBy = sourceUser.utorid;
+    receiverData.createdBy = sourceUser.utorid;
+
+    // create two transactions
+    const t1 = await transactionService.createRedemption(senderData);
+    const t2 = await transactionService.createRedemption(receiverData);
+
+    // update points
+    const updatedSrc = await userService.updateUserById(sourceUser.id, { points: sourceUser.points - amount });
+    const updatedTar = await userService.updateUserById(targetUser.id, { points: targetUser.points + amount });
+
+    return res.status(201).json({
+      id: t1.id,
+      sender: sourceUser.utorid,
+      recipient: targetUser.utorid,
+      type: "transfer",
+      sent: amount,
+      remark,
+      createdBy: sourceUser.utorid
+    });
+  },
+
+  async redeemPoints(req, res){
+    const { type, amount, remark } = req.body;
+    let data = {};
+
+    // validate the payloads
+    if(type !== "redemption"){
+      return res.status(400).json({ error: "type should be 'redemption'" });
+    }
+    data.type = "redemption";
+
+    if(typeof amount !== "number" || amount < 0){
+      return res.status(400).json({ error: "amount should be a positive integer" });
+    }
+    data.amount = amount;
+
+    if(remark === undefined){
+      data.remark = "";
+    } else{
+      data.remark = remark;
+    }
+
+    const user = await userService.getUserById(req.user.id);
+    if(user.points < amount){
+      return res.status(400).json({ error: "insufficient points" });
+    }else if(!user.verified){
+      return res.status(403).json({ error: "you need to verify your account before transferring points" });
+    }
+    data.utorid = user.utorid;
+    data.createdBy = user.utorid;
+
+    data.processedBy = null;
+
+    // create transaction
+    const t = await transactionService.createTransfer(data);
+
+    return res.status(201).json({
+      id: t.id,
+      utorid: user.utorid,
+      type: "redemption",
+      processedBy: null,
+      amount,
+      remark,
+      createdBy: user.utorid
+    });
+  },
+
+  async getMyTransactions(req, res){
+    let page, limit;
+    let where = {};
+
+    const user = await userService.getUserById(req.user.id);
+    where["utorid"] = user.utorid;
+
+    if(req.query.amount !== undefined && req.query.operator !== undefined){
+      where["amount"] = {};
+      where["amount"][req.query.operator] = parseInt(req.query.amount, 10);
+    }
+
+    for(const key in req.query){
+      const value = req.query[key];
+      if(value !== undefined){
+        switch(key){
+          case "type":
+            where[key] = req.query[key];
+            break;
+          case "promotionId":
+            where["promotions"] = {};
+            where["promotions"]["some"] = { id: parseInt(req.query[key], 10) };
+            break;
+          case "relatedId":
+            where["relatedId"] = parseInt(req.query[key], 10);
+            break;
+          case "page":
+            page = parseInt(req.query[key], 10);
+            break;
+          case "limit":
+            limit = parseInt(req.query[key], 10);
+            break;
+        }
+      }
+    }
+
+    if(page === undefined){
+      page = 1;
+    }
+
+    if(limit === undefined){
+      limit = 10;
+    }
+
+    const skip = (page - 1) * limit;
+
+    if(page < 1 || limit < 1){
+      return res.status(400).json({ error: "page and limit must be positive integers" });
+    }else if(req.query.relatedId !== undefined && req.query.type === undefined){
+      return res.status(400).json({ error: "relatedId must be used with type" });
+    }else if(req.query.amount !== undefined && req.query.operator === undefined){
+      return res.status(400).json({ error: "amount must be used with operator" });
+    }else if(req.operator !== undefined && req.operator !== "gte" && req.operator !== "lte"){
+      return res.status(400).json({ error: "operator must be gte or lte" });
+    }
+
+    let transactions = await transactionService.getTransactionsWithInclude(where, true);
+    const count = transactions.length;
+    if(!transactions){
+      return res.status(200).json({ count: count, results: [], message: "no transactions found with this condition" });
+    }
+
+    transactions = await transactionService.getTransactionsWithSkipAndLimitAndInclude(where, skip, limit, true);
+    if(!transactions){
+      return res.status(200).json({ count: count, results: [], message: "no transactions in this page" });
+    }
+
+    return res.status(200).json({
+      count: count,
+      results: transactions,
+    });
   }
+
 };
 
 module.exports = userController;

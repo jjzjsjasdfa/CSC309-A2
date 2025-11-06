@@ -136,7 +136,7 @@ function validateTypeAndValue(req, res, reqField){
         break;
 
       case "amount":
-        if (!/^-?\d+$/.test(value)) {
+        if (!/^-?\d*.\d*?$/.test(value)) {
           return res.status(400).json({ error: `${key} should be an integer`});
         }
         break;

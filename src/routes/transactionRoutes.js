@@ -6,7 +6,13 @@ const { validateTransactionPayloads } = require("../middleware/transactionMiddle
 const {authenticateToken, authorization,validatePayload,
 } = require("../middleware/middleware");
 
-
+router.patch(
+  "/:transactionId/processed",
+  authenticateToken,
+  authorization(["cashier", "manager", "superuser"]),
+  validatePayload({ required: ["processed"] }, "body"),
+  transactionController.processRedemption
+)
 
 router.route("/")
   .post(
@@ -23,4 +29,18 @@ router.route("/")
     "query"),
   transactionController.getTransactions
   );
+
+router.get("/:transactionId",
+    authenticateToken,
+    authorization(["manager", "superuser"]), 
+    transactionController.getTransactionById
+ );
+
+router.patch("/:transactionId/suspicious",
+    authenticateToken,
+    authorization(["manager", "superuser"]),
+    validatePayload({ required: ["suspicious"] }, "body"),
+    transactionController.setSuspicious
+ );
+
 module.exports = router;
