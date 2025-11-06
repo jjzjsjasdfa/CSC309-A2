@@ -44,6 +44,14 @@ const eventsService = {
 
   async updateEvent(id, patch) {
     return eventsRepository.updateEvent(id, patch);
+  },
+
+  async addGuest(userId, eventId) {
+    return eventsRepository.addIntoGuests(userId, eventId);
+  },
+
+  async deleteGuest(userId, eventId) {
+    return eventsRepository.deleteGuest(userId, eventId);
   }
 }
 module.exports = eventsService;
