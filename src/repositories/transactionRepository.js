@@ -34,7 +34,6 @@ const transactionRepository = {
   },
 
   async getTransactionsWithSkipAndLimitAndInclude(where, skip, limit, includePromotions){
-    console.log(includePromotions);
     if (includePromotions) {
       return await prisma.transaction.findMany({
         where: where,

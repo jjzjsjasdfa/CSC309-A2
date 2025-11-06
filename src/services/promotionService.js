@@ -261,10 +261,8 @@ const promotionService = {
     }
   },
 
-  async usePromotions(userId, promotionIds){
-    for (const promotionId of promotionIds) {
-      const promoUsage = await promotionRepository.addToPromotionUsage(userId, promotionId);
-    }
+  async usePromotion(userId, promotionId){
+    const promoUsage = await promotionRepository.addToPromotionUsage(userId, promotionId);
   }
 };
 

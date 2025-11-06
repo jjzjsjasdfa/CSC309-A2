@@ -24,6 +24,7 @@ const transactionController = {
         let promotions = [];
         transactionData.promotions = { connect: [] };
         if (promotionIds === undefined || promotionIds.length === 0){
+            promotionIds = [];
             transactionData.promotions = {};
         }else{
             const availablePromos = await promotionRepository.availableByUtorid(utorid);
@@ -63,17 +64,28 @@ const transactionController = {
 
             // promotion points
             for (const promotion of promotions) {
-                if (promotion.rate != null) earned += Math.round(spent * promotion.rate);
+                // promotion is used
+                if(promotion.minSpending === undefined ||
+                  (promotion.minSpending !== undefined && spent !== undefined && spent >= promotion.minSpending)){
+                  // earn promotion points
+                  const fixedPoints = promotion.points === undefined ? 0 : promotion.points;
+                  earned += fixedPoints;
+                  if (promotion.rate != null) earned += Math.round(spent * promotion.rate * 100);
+
+                  // update the table
+                  await promotionService.usePromotion(transactionUser.id, promotion.id);
+                }
             }
 
             transactionData.earned = earned;
             // TODO: check if the points earned is correct
 
+            if (createdByUser.suspicious) {
+              transactionData.suspicious = true;
+            }
+
             // create transaction
             const purchase = await transactionService.createPurchaseWithInclude(transactionData, includePromotions);
-
-            // use promotions
-            await promotionService.usePromotions(transactionUser.id, promotionIds);
 
             // update user points
             if (!createdByUser.suspicious) {
@@ -112,9 +124,6 @@ const transactionController = {
             // create transaction
             const adjustment = await transactionService.createAdjustmentWithInclude(transactionData, includePromotions);
 
-            // use promotions
-            await promotionService.usePromotions(transactionUser.id, promotionIds);
-
             // update user points
             const updatedTransactionUser = await userRepository.updateUserByUtorid(utorid, { points: { increment: amount } });
 
@@ -125,14 +134,13 @@ const transactionController = {
                 type: adjustment.type,
                 relatedId: adjustment.relatedId,
                 remark: adjustment.remark,
-                promotionIds: adjustment.promotionIds,
+                promotionIds: promotionIds,
                 createdBy: adjustment.createdBy
             });
         }
     },
 
     async getTransactions(req, res) {
-      console.log(req.query);
       let page, limit;
       let where = {};
 

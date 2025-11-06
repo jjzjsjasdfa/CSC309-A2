@@ -19,7 +19,7 @@ router.route("/")
   authenticateToken,
   authorization(["manager", "superuser"]),
   validatePayload(
-    { optional: ["utorid", "createdBy", "suspicious", "promotionId", "type", "relatedId", "amount", "operator", "page", "limit"] },
+    { optional: ["name", "createdBy", "suspicious", "promotionId", "type", "relatedId", "amount", "operator", "page", "limit"] },
     "query"),
   transactionController.getTransactions
   );
