@@ -105,8 +105,13 @@ const eventsRepository = {
     });
     return event !== null;
   },
+  
   async delete(id) {
     return prisma.event.delete({ where: { id } });
+  },
+
+  async updateEvent(id, patch) {
+    return eventsRepository.updateEvent(id, patch);
   }
 };
 

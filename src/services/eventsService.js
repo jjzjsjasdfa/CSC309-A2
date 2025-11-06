@@ -40,6 +40,10 @@ const eventsService = {
 
   async deleteEventById(id){
     return await eventsRepository.delete(id);
+  },
+
+  async updateEvent(id, patch) {
+    return eventsRepository.updateEvent(id, patch);
   }
 }
 module.exports = eventsService;

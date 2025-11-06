@@ -47,7 +47,6 @@ const eventController = {
         where.location = { contains: req.query.location, mode: "insensitive" };
       }
 
-      // started/ended: 不允许同时给
       if (req.query.started !== undefined && req.query.ended !== undefined) {
         return res.status(400).json({ error: 'cannot specify both started and ended' });
       }
@@ -146,7 +145,7 @@ const eventController = {
       return res.status(400).json({ error: error.message });
     }
   },
-  
+
   async kickOrganizer(req, res){
     try {
       let eid = parseInt(req.params.eventId, 10);
@@ -163,7 +162,7 @@ const eventController = {
       let eid = parseInt(req.params.eventId, 10);
       let event = await eventsService.getEventById(eid);
       if(Boolean(event.published) === true) {
-        return res.status(400).json({ message: "event already published" });
+        return res.status(403).json({ message: "event already published" });
       }
       await eventsService.deleteEventById(eid);
       return res.status(204).send();
@@ -201,6 +200,67 @@ const eventController = {
     }
     catch(error){
       return res.status(400).json({ error: error.message });
+    }
+  },
+
+  async updateEvent(req, res) {
+    try {
+      const id = Number(req.params.eventId);
+      if (!Number.isInteger(id) || id <= 0) return res.status(404).json({message: "no such event"});
+
+      const patch = {};
+      const {name, description, location, startTime, endTime, capacity, published} = req.body;
+
+      if (name !== undefined) patch.name = String(name);
+      if (description !== undefined) patch.description = String(description);
+      if (location !== undefined) patch.location = String(location);
+
+      if (startTime !== undefined) {
+        const s = new Date(startTime);
+        if (Number.isNaN(s)) return res.status(400).json({ error: "Invalid startTime" });
+        patch.startTime = s;
+      }
+
+      if (endTime !== undefined) {
+        const e = new Date(endTime);
+        if (Number.isNaN(e)) return res.status(400).json({ error: "Invalid endTime" });
+        patch.endTime = e;
+      }
+
+      if (patch.startTime || patch.endTime) {
+        const s = patch.startTime ?? undefined;
+        const e = patch.endTime ?? undefined;
+        const current = await eventsService.getEventById(id);
+        const effS = s ?? new Date(current.startTime);
+        const effE = e ?? new Date(current.endTime);
+        if (effE <= effS) return res.status(400).json({ error: "endTime must be after startTime" });
+      }
+
+      if (capacity !== undefined) {
+        const c = Number(capacity);
+        if (!Number.isInteger(c) || c <= 0) return res.status(400).json({ error: "capacity must be positive integer" });
+        patch.capacity = c;
+      }
+
+      if (published !== undefined) {
+        if (published !== true && published !== false) return res.status(400).json({ error: "published must be boolean" });
+        patch.published = published;
+      }
+
+      const updated = await eventsService.updateEvent(id, patch);
+      return res.status(200).json({
+        id: updated.id,
+        name: updated.name,
+        location: updated.location,
+        startTime: updated.startTime,
+        endTime: updated.endTime,
+        capacity: updated.capacity ?? null,
+        pointsRemain: updated.pointsRemain,
+        pointsAwarded: updated.pointsAwarded,
+        published: updated.published
+      });
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
     }
   }
 };
