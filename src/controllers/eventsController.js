@@ -162,7 +162,7 @@ const eventController = {
       let eid = parseInt(req.params.eventId, 10);
       let event = await eventsService.getEventById(eid);
       if(Boolean(event.published) === true) {
-        return res.status(403).json({ message: "event already published" });
+        return res.status(400).json({ message: "event already published" });
       }
       await eventsService.deleteEventById(eid);
       return res.status(204).send();
@@ -208,9 +208,50 @@ const eventController = {
       const id = Number(req.params.eventId);
       if (!Number.isInteger(id) || id <= 0) return res.status(404).json({message: "no such event"});
 
-      const patch = {};
-      const {name, description, location, startTime, endTime, capacity, published} = req.body;
+      const current = await eventsService.getEventById(id);
+      if (!current) return res.status(404).json({ message: "no such event" });
 
+      const isMgr = ['manager','superuser'].includes(req.user.role);
+      const now = new Date();
+      const hasStarted = new Date(current.startTime) <= now;
+      const hasEnded   = new Date(current.endTime)   <= now;
+
+      const patch = {};
+      const {name, description, location, startTime, endTime, capacity, published, points} = req.body;
+ 
+      // Managers only
+      if ((published !== undefined || points !== undefined) && !isMgr) {
+        return res.status(403).json({ error: 'Only manager/superuser can modify published/points' });
+      }
+
+      // published: can only be set to true
+      if (published !== undefined) {
+        if (published !== true) {
+          return res.status(400).json({ error: "published can only be set to true" });
+        }
+        patch.published = true;
+      }
+
+      // points
+      if (points !== undefined) {
+        const total = Number(points);
+        if (!Number.isInteger(total) || total <= 0) {
+          return res.status(400).json({ error: "points must be a positive integer" });
+        }
+        const newRemain = total - (current.pointsAwarded ?? 0);
+        if (newRemain < 0) {
+          return res.status(400).json({ error: "points reduction would make remaining negative" });
+        }
+        patch.pointsRemain = newRemain;
+      }
+
+      if (hasStarted && (name !== undefined || description !== undefined || location !== undefined || startTime !== undefined || capacity !== undefined)) {
+        return res.status(400).json({ error: "cannot update name/description/location/startTime/capacity after event has started" });
+      }
+      if (hasEnded && endTime !== undefined) {
+        return res.status(400).json({ error: "cannot update endTime after event has ended" });
+      }
+      
       if (name !== undefined) patch.name = String(name);
       if (description !== undefined) patch.description = String(description);
       if (location !== undefined) patch.location = String(location);
@@ -227,24 +268,23 @@ const eventController = {
         patch.endTime = e;
       }
 
-      if (patch.startTime || patch.endTime) {
-        const s = patch.startTime ?? undefined;
-        const e = patch.endTime ?? undefined;
-        const current = await eventsService.getEventById(id);
-        const effS = s ?? new Date(current.startTime);
-        const effE = e ?? new Date(current.endTime);
-        if (effE <= effS) return res.status(400).json({ error: "endTime must be after startTime" });
+      const effS = patch.startTime ?? new Date(current.startTime);
+      const effE = patch.endTime   ?? new Date(current.endTime);
+      if (effE <= effS) return res.status(400).json({ error: "endTime must be after startTime" });
+      if ((patch.startTime && patch.startTime < now) || (patch.endTime && patch.endTime < now)) {
+        return res.status(400).json({ error: "startTime/endTime cannot be in the past" });
       }
 
       if (capacity !== undefined) {
-        const c = Number(capacity);
-        if (!Number.isInteger(c) || c <= 0) return res.status(400).json({ error: "capacity must be positive integer" });
-        patch.capacity = c;
-      }
-
-      if (published !== undefined) {
-        if (published !== true && published !== false) return res.status(400).json({ error: "published must be boolean" });
-        patch.published = published;
+        if (capacity !== null) {
+          const c = Number(capacity);
+          if (!Number.isInteger(c) || c <= 0) return res.status(400).json({ error: "capacity must be a positive integer or null" });
+          const numGuests = (current.guests ? current.guests.length : 0);
+          if (c < numGuests) return res.status(400).json({ error: "capacity cannot be below current number of guests" });
+          patch.capacity = c;
+        } else {
+          patch.capacity = null;
+        }
       }
 
       const updated = await eventsService.updateEvent(id, patch);
@@ -255,9 +295,9 @@ const eventController = {
         startTime: updated.startTime,
         endTime: updated.endTime,
         capacity: updated.capacity ?? null,
-        pointsRemain: updated.pointsRemain,
-        pointsAwarded: updated.pointsAwarded,
-        published: updated.published
+        ...(points !== undefined ? { pointsRemain: updated.pointsRemain } : {}),
+        ...(updated.pointsAwarded !== undefined ? { pointsAwarded: updated.pointsAwarded } : {}),
+        ...(published !== undefined ? { published: updated.published } : {})
       });
     } catch (err) {
       return res.status(400).json({ error: err.message });
