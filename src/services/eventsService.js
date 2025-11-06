@@ -13,9 +13,13 @@ const eventsService = {
   async getEvents(where){
     return await eventsRepository.findMany(where);
   },
-  
+
   async countEvents(where) {
     return eventsRepository.count(where);
+  },
+
+  async getEventsWithCounts(where) {
+    return eventsRepository.findManyWithCounts(where);
   }
 }
 module.exports = eventsService;

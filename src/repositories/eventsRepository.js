@@ -35,6 +35,14 @@ const eventsRepository = {
 
   async count(where) {
     return prisma.event.count({ where });
+  },
+
+  async findManyWithCounts(where) {
+    return prisma.event.findMany({
+      where,
+      orderBy: {id: 'asc'},
+      include: { _count: {select: {guests: true}}}
+    });
   }
 };
 

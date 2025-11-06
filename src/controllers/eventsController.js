@@ -7,12 +7,12 @@ const eventController = {
       const newEvent = await eventsService.registerEvent(n,d,l,sT,eT,p,c);
       const out = {
         id: newEvent.id,
-        name: newEvent.n,
-        description: newEvent.d,
-        location: newEvent.l,
-        startTime: newEvent.sT,
-        endTime: newEvent.eT,
-        capacity: newEvent.c ?? null,
+        name: newEvent.name,
+        description: newEvent.description,
+        location: newEvent.location,
+        startTime: newEvent.startTime,
+        endTime: newEvent.endTime,
+        capacity: newEvent.capacity ?? null,
         pointsRemain: newEvent.pointsRemain,
         pointsAwarded: newEvent.pointsAwarded,
         published: newEvent.published,
@@ -28,41 +28,55 @@ const eventController = {
   async getEvents(req, res){
     try {
       const present = new Date();
-      let page = req.query.page ? parseInt(req.query.page, 10) : 1;
-      let limit = req.query.limit ? parseInt(req.query.limit, 10) : 10;
-      if (!Number.isInteger(page) || page < 1 || !Number.isInteger(limit) || limit < 1) {
-        return res.status(400).json({error: "page and limit must be positive integers"});
-      }
+      const page  = Number.isInteger(+req.query.page)  && +req.query.page  > 0 ? +req.query.page  : 1;
+      const limit = Number.isInteger(+req.query.limit) && +req.query.limit > 0 ? +req.query.limit : 10;
+      const showFull = req.query.showFull === 'true';
 
-          const where = {};
-      if (req.query.name) where.name = {contains: req.query.name, mode: "insensitive"};
-      if (req.query.location) where.location = {contains: req.query.location, mode: "insensitive"};
-      if (req.user.role === "regular") where.published = true;
+      const where = {};
+      if (req.query.name) {
+        where.name = { contains: req.query.name, mode: "insensitive" };
+      }
+      if (req.query.location) {
+        where.location = { contains: req.query.location, mode: "insensitive" };
+      }
 
       if (req.query.started === "true") where.startTime = {lte: present};
       if (req.query.started === "false") where.startTime = {gt:  present};
       if (req.query.ended === "true")  where.endTime = {lte: present};
       if (req.query.ended === "false") where.endTime = {gt: present};
-
-      let all = await eventsService.getEvents(where);
-
-      if (req.query.showFull !== 'true') {
-        all = all.filter(ev => (ev.capacity == null) || (ev._count.guests < ev.capacity));
+      
+      if (req.user.role === 'regular' || req.user.role === 'cashier') {
+        where.published = true;
+      } else if (req.query.published === 'true') {
+        where.published = true;
+      } else if (req.query.published === 'false') {
+        where.published = false;
       }
 
-      const count = all.length;
+      let events = await eventsService.getEventsWithCounts(where);
+
+      if (!showFull) {
+        events = events.filter(ev =>
+        ev.capacity == null || (ev._count?.guests ?? 0) < ev.capacity
+        );
+      }
+
+      const count = events.length;
 
       const start = (page - 1) * limit;
-      const paged = all.slice(start, start + limit);
+      const pageItems = events.slice(start, start + limit);
 
-      const results = paged.map(ev => ({
+      const results = pageItems.map(ev => ({
         id: ev.id,
         name: ev.name,
         location: ev.location,
         startTime: ev.startTime,
         endTime: ev.endTime,
-        capacity: ev.capacity ?? null,
-        numGuests: ev._count.guests
+        capacity: ev.capacity,
+        pointsRemain: ev.pointsRemain,
+        pointsAwarded: ev.pointsAwarded,
+        published: ev.published,
+        numGuests: ev._count?.guests ?? 0,
       }));
 
       return res.status(200).json({ count, results });
