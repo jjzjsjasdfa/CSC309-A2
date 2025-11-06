@@ -52,13 +52,13 @@ const userController = {
     let users = await userService.getUsers(where);
     const count = users.length;
     if(!users){
-      return res.status(200).json({ message: "no users found" });
+      return res.status(200).json({ count: count, results: [], message: "no users found with this condition" });
     }
 
     const skip = (page - 1) * limit;
     users = await userService.getUsersWithSkipAndLimit(where, skip, limit);
     if(!users){
-      return res.status(200).json({ message: "no users in this page" });
+      return res.status(200).json({ count: count, results: [], message: "no users in this page" });
     }
 
     const results = users.map(
