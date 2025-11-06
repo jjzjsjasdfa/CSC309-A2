@@ -89,6 +89,7 @@ const transactionController = {
 
             if (createdByUser.suspicious) {
               transactionData.suspicious = true;
+              transactionData.earned = 0;
             }
 
             // create transaction
@@ -122,7 +123,7 @@ const transactionController = {
             }
             transactionData.amount = amount;
 
-            const oldTransaction = promotionRepository.findById(relatedId);
+            const oldTransaction = transactionService.findById(relatedId);
             if (!oldTransaction) {
                 return res.status(404).json({ error: "related transaction not found" });
             }
