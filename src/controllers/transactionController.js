@@ -3,6 +3,7 @@ const userService = require("../services/userService");
 const userRepository = require("../repositories/userRepository");
 const promotionRepository = require("../repositories/promotionRepository");
 const promotionService = require("../services/promotionService");
+const transactionRepository = require("../repositories/transactionRepository");
 
 const transactionController = {
     async createTransaction(req, res) {
@@ -75,6 +76,11 @@ const transactionController = {
                   // update the table
                   await promotionService.usePromotion(transactionUser.id, promotion.id);
                 }
+
+                // promotion is not used
+                if(promotion.minSpending !== undefined && spent !== undefined && spent < promotion.minSpending){
+                  return res.status(400).json({ error: "spent is less than the minimum spending" });
+                }
             }
 
             transactionData.earned = earned;
@@ -82,6 +88,8 @@ const transactionController = {
 
             if (createdByUser.suspicious) {
               transactionData.suspicious = true;
+              transactionData.amount = earned;
+              transactionData.earned = 0;
             }
 
             // create transaction
@@ -115,7 +123,7 @@ const transactionController = {
             }
             transactionData.amount = amount;
 
-            const oldTransaction = promotionRepository.findById(relatedId);
+            const oldTransaction = await transactionService.findById(relatedId);
             if (!oldTransaction) {
                 return res.status(404).json({ error: "related transaction not found" });
             }
@@ -145,7 +153,28 @@ const transactionController = {
       let where = {};
 
       if(req.query.amount !== undefined && req.query.operator !== undefined){
+        where["amount"] = {};
         where["amount"][req.query.operator] = parseInt(req.query.amount, 10);
+      }
+
+      if (typeof req.query.name === "string" && req.query.name !== "") {
+        const nameQ = req.query.name;
+        const prisma = require("../../prisma/prismaClient");
+        const matches = await prisma.user.findMany({
+        where: {
+            OR: [
+            { name:   { contains: nameQ, mode: "insensitive" } },
+            { utorid: { contains: nameQ, mode: "insensitive" } },
+            ],
+        },
+        select: { utorid: true }
+        });
+
+        if (matches.length > 0) {
+            where.utorid = { in: matches.map(u => u.utorid) };
+        } else {
+            where.utorid = { contains: nameQ, mode: "insensitive" };
+        }
       }
 
       for(const key in req.query){
@@ -165,8 +194,7 @@ const transactionController = {
               where["promotions"]["some"] = { id: parseInt(req.query[key], 10) };
               break;
             case "relatedId":
-            case "amount":
-              where[key] = parseInt(req.query[key], 10);
+              where["relatedId"] = parseInt(req.query[key], 10);
               break;
             case "page":
               page = parseInt(req.query[key], 10);
@@ -214,6 +242,90 @@ const transactionController = {
         results: transactions,
       });
     },
+
+  async processRedemption(req, res) {
+      const user = await userRepository.findById(req.user.id);
+
+      const { processed } = req.body;
+      if(processed === undefined || typeof processed !== "boolean" || processed !== true){
+        return res.status(400).json({ error: "processed can only be true" });
+      }
+
+      const transactionId = parseInt(req.params.transactionId, 10);
+
+      const transaction = await transactionService.findById(transactionId);
+      if(transaction === undefined){
+        return res.status(404).json({ error: "transaction not found" });
+      }else if(transaction.type !== "redemption"){
+        return res.status(400).json({ error: "transaction is not a redemption" });
+      }else if(transaction.processedBy !== null){
+        return res.status(400).json({ error: "transaction is already processed" });
+      }
+
+      // update transaction
+      const updatedTransaction = await transactionService.updateTransaction({ id: transactionId }, { processedBy: user.utorid });
+
+      // remove the points
+      const updatedUser = await userRepository.updateUserByUtorid(transaction.utorid, { points: { decrement: transaction.amount } });
+      if(!updatedUser){
+        return res.status(404).json({ error: "user not found" });
+      }
+
+      return res.status(200).json({
+        id: updatedTransaction.id,
+        utorid: updatedTransaction.utorid,
+        type: updatedTransaction.type,
+        processedBy: updatedTransaction.processedBy,
+        remark: updatedTransaction.remark,
+        createdBy: updatedTransaction.createdBy,
+      })
+  },
+
+    async getTransactionById(req, res) {
+        const id = parseInt(req.params.transactionId, 10);
+        if (Number.isNaN(id)) return res.status(400).json({ error: "invalid id" });
+
+        const transaction = await transactionService.getById(id);
+        if (!transaction) return res.status(404).json({ error: "not found" });
+
+        return res.status(200).json({ id: transaction.id, utorid: transaction.utorid, type: transaction.type,
+            spent: transaction.spent ?? undefined, amount: transaction.amount ?? transaction.earned ?? 0,
+            promotionIds: transaction.promotions?.map(p => p.id) ?? [], suspicious: transaction.suspicious,
+            remark: transaction.remark ?? "", createdBy: transaction.createdBy, relatedId: transaction.relatedId
+        });
+    },
+
+    async setSuspicious(req, res) {
+        const id = parseInt(req.params.transactionId, 10);
+        if (Number.isNaN(id)) return res.status(400).json({ error: "invalid id" });
+
+        const { suspicious } = req.body;
+        if (typeof suspicious !== "boolean") return res.status(400).json({ error: "suspicious type error" });
+
+        const transaction = await transactionService.getById(id);
+        if (!transaction) return res.status(404).json({ error: "not found" });
+        if (transaction.suspicious === suspicious) {
+            return res.status(200).json({ ...transaction, promotionIds: transaction.promotions?.map(p => p.id) ?? [] });
+        }
+
+        const updated = await transactionService.updateSuspicious(id, suspicious);
+
+        const base = transaction.amount ?? transaction.earned ?? 0;
+        let delta;
+        if (suspicious) {
+            delta = -base;
+        } else {
+            delta = base;
+        }
+
+        await userRepository.updateUserByUtorid(transaction.utorid, { points: { increment: delta } });
+
+        return res.status(200).json({ id: updated.id, utorid: updated.utorid, type: updated.type, spent: updated.spent ?? undefined,
+            amount: updated.amount ?? updated.earned ?? 0, promotionIds: updated.promotions?.map(p => p.id) ?? [],
+            suspicious: updated.suspicious, remark: updated.remark ?? "", createdBy: updated.createdBy
+        });
+    }
+
 }
 
 module.exports = transactionController;
