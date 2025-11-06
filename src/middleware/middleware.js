@@ -6,7 +6,7 @@ const userService = require("../services/userService");
 function validateTypeAndValue(req, res, reqField){
   for (const key in req[reqField]) {
     const value = req[reqField][key];
-    if (value === null){
+    if (value === null || value === "null"){
       req[reqField][key] = undefined;
       continue;
     }
@@ -128,6 +128,30 @@ function validateTypeAndValue(req, res, reqField){
         }
         break;
 
+      case "spent":
+        if (Number(value) < 0){
+          return res.status(400).json({ error: `${key} field should be non negative` });
+        }
+        break;
+
+      case "amount":
+        if (!/^-?\d+$/.test(value)) {
+          return res.status(400).json({ error: `${key} should be an integer`});
+        }
+        break;
+
+      case "relatedId":
+      case "promotionId":
+        if (!/^\d+$/.test(value)) {
+          return res.status(400).json({ error: `${key} should be a number`});
+        }
+        break;
+
+      case "operator":
+        if (value !== "gte" && value !== "lte") {
+          return res.status(400).json({ error: `${key} should be gte or lte`});
+        }
+        break;
     }
   }
   return null;

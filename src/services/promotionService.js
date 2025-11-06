@@ -259,6 +259,12 @@ const promotionService = {
       console.error("PATCH /promotions/:id failed:", err.message);
       return res.status(err.code || 400).json({ error: err.message });
     }
+  },
+
+  async usePromotions(userId, promotionIds){
+    for (const promotionId of promotionIds) {
+      const promoUsage = await promotionRepository.addToPromotionUsage(userId, promotionId);
+    }
   }
 };
 

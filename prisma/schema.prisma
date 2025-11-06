@@ -44,23 +44,25 @@ model User {
   expiresAt       DateTime
   resetToken      String
   avatarUrl       String?
-  organizes       Event[]     @relation("UserOrganizedEvent")
-  guestsEvent     Event[]     @relation("UserGuestEvent")
+  organizes       Event[]          @relation("UserOrganizedEvent")
+  guestsEvent     Event[]          @relation("UserGuestEvent")
   promotionUsages PromotionUsage[]
-  transactions  Transaction[]
+  transactions    Transaction[]
 }
 
 model Transaction {
-  id          Int      @id @default(autoincrement())
-  type        TransactionType
-  utorid      String
-  user        User @relation(fields: [utorid], references:[utorid])
-  spent       Float
-  promoIds    Promotion[] @relation("TransactionPromotion")
-  earned      Int?
-  remark      String?
-  suspicious  Boolean @default(false)
-  amount      Int 
+  id         Int             @id @default(autoincrement())
+  type       TransactionType
+  utorid     String
+  user       User            @relation(fields: [utorid], references: [utorid])
+  spent      Float?
+  promotions Promotion[]     @relation("TransactionPromotion")
+  earned     Int?
+  remark     String?
+  suspicious Boolean         @default(false)
+  amount     Int?
+  relatedId  Int?
+  createdBy  String
 }
 
 model Promotion {
@@ -74,7 +76,7 @@ model Promotion {
   rate        Float?
   points      Int?
   usages      PromotionUsage[]
-  transactions Transaction[] @relation("TransactionPromotion")
+  Transaction Transaction[]    @relation("TransactionPromotion")
 }
 
 model PromotionUsage {
@@ -85,24 +87,20 @@ model PromotionUsage {
 
   user      User      @relation(fields: [userId], references: [id])
   promotion Promotion @relation(fields: [promotionId], references: [id])
-
-  @@unique([userId, promotionId])
 }
 
 model Event {
-  id          Int      @id @default(autoincrement())
-  name        String
-  description String
-  location    String
-  startTime   DateTime
-  endTime     DateTime
+  id            Int      @id @default(autoincrement())
+  name          String
+  description   String
+  location      String
+  startTime     DateTime
+  endTime       DateTime
   capacity      Int?
   pointsRemain  Int
-  pointsAwarded Int    @default(0)
-  published   Boolean  @default(false)
-  organizers  User[]   @relation("UserOrganizedEvent")
-  guests      User[]   @relation("UserGuestEvent")
-  numGuests   Int      @default(0)
-
-
+  pointsAwarded Int      @default(0)
+  published     Boolean  @default(false)
+  organizers    User[]   @relation("UserOrganizedEvent")
+  guests        User[]   @relation("UserGuestEvent")
+  numGuests     Int      @default(0)
 }
