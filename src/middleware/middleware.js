@@ -109,20 +109,6 @@ function validateTypeAndValue(req, res, reqField){
           return res.status(400).json({ error: `${key} field should be positive integer` });
         }
         break;
-
-      case "startTime":
-        if (new Date(value).getTime() < Date.now()){
-          return res.status(400).json({ error: "startTime must be after present" });
-        }
-        break;
-      case "endTime":
-        if (new Date(value).getTime() < Date.now()){
-          return res.status(400).json({ error: "endTime must be after present" });
-        }
-        if (new Date(value).getTime() <= new Date(req.body.startTime).getTime()){
-          return res.status(400).json({ error: "endTime must be after startTime" });
-        }
-        break;
       case "points":
         if (!(typeof value === 'string' && /^[0-9]+$/.test(value)) && !(typeof value === 'number' && value > 0)){
           return res.status(400).json({ error: `${key} field should be positive integer` });

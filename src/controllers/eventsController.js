@@ -5,6 +5,21 @@ const eventController = {
   async register(req, res) {
     try {
       const { name: n, description: d, location: l, startTime: sT, endTime: eT, points: p, capacity: c} = req.body;
+      
+      const now = Date.now();
+      const s = new Date(sT);
+      const e = new Date(eT);
+
+      if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) {
+        return res.status(400).json({ error: "Invalid startTime/endTime" });
+      }
+      if (s.getTime() < now) {
+        return res.status(400).json({ error: "startTime must be after present" });
+      }
+      if (e.getTime() <= s.getTime()) {
+        return res.status(400).json({ error: "endTime must be after startTime" });
+      }
+
       const newEvent = await eventsService.registerEvent(n,d,l,sT,eT,p,c);
       const out = {
         id: newEvent.id,
@@ -206,103 +221,162 @@ const eventController = {
   async updateEvent(req, res) {
     try {
       const id = Number(req.params.eventId);
-      if (!Number.isInteger(id) || id <= 0) return res.status(404).json({message: "no such event"});
+      if (!Number.isInteger(id) || id <= 0) {
+        return res.status(404).json({ message: "no such event" });
+      }
 
       const current = await eventsService.getEventById(id);
       if (!current) return res.status(404).json({ message: "no such event" });
 
-      const isMgr = ['manager','superuser'].includes(req.user.role);
+      const isMgr = ["manager", "superuser"].includes(req.user?.role);
       const now = new Date();
       const hasStarted = new Date(current.startTime) <= now;
-      const hasEnded   = new Date(current.endTime)   <= now;
+      const hasEnded = new Date(current.endTime) <= now;
+
+      const {
+        name,
+        description,
+        location,
+        startTime,
+        endTime,
+        capacity,
+        published,
+        points,
+      } = req.body ?? {};
+
+      const wantsToSetPublished = published !== undefined && published !== null;
+      const wantsToSetPoints = points !== undefined && points !== null;
+      if ((wantsToSetPublished || wantsToSetPoints) && !isMgr) {
+        return res
+          .status(403)
+          .json({ error: "Only manager/superuser can modify published/points" });
+      }
 
       const patch = {};
-      const {name, description, location, startTime, endTime, capacity, published, points} = req.body;
- 
-      // Managers only
-      if ((published !== undefined || points !== undefined) && !isMgr) {
-        return res.status(403).json({ error: 'Only manager/superuser can modify published/points' });
-      }
 
-      // published: can only be set to true
-      if (published !== undefined) {
-        if (published !== true) {
-          return res.status(400).json({ error: "published can only be set to true" });
-        }
-        patch.published = true;
-      }
+      if (name !== undefined && name !== null) patch.name = String(name);
+      if (description !== undefined && description !== null)
+        patch.description = String(description);
+      if (location !== undefined && location !== null)
+        patch.location = String(location);
 
-      // points
-      if (points !== undefined) {
-        const total = Number(points);
-        if (!Number.isInteger(total) || total <= 0) {
-          return res.status(400).json({ error: "points must be a positive integer" });
-        }
-        const newRemain = total - (current.pointsAwarded ?? 0);
-        if (newRemain < 0) {
-          return res.status(400).json({ error: "points reduction would make remaining negative" });
-        }
-        patch.pointsRemain = newRemain;
-      }
-
-      if (hasStarted && (name !== undefined || description !== undefined || location !== undefined || startTime !== undefined || capacity !== undefined)) {
-        return res.status(400).json({ error: "cannot update name/description/location/startTime/capacity after event has started" });
-      }
-      if (hasEnded && endTime !== undefined) {
-        return res.status(400).json({ error: "cannot update endTime after event has ended" });
-      }
-      
-      if (name !== undefined) patch.name = String(name);
-      if (description !== undefined) patch.description = String(description);
-      if (location !== undefined) patch.location = String(location);
-
-      if (startTime !== undefined) {
+      if (startTime !== undefined && startTime !== null) {
         const s = new Date(startTime);
         if (Number.isNaN(s)) return res.status(400).json({ error: "Invalid startTime" });
         patch.startTime = s;
       }
 
-      if (endTime !== undefined) {
+      if (endTime !== undefined && endTime !== null) {
         const e = new Date(endTime);
         if (Number.isNaN(e)) return res.status(400).json({ error: "Invalid endTime" });
         patch.endTime = e;
       }
 
-      const effS = patch.startTime ?? new Date(current.startTime);
-      const effE = patch.endTime   ?? new Date(current.endTime);
-      if (effE <= effS) return res.status(400).json({ error: "endTime must be after startTime" });
-      if ((patch.startTime && patch.startTime < now) || (patch.endTime && patch.endTime < now)) {
-        return res.status(400).json({ error: "startTime/endTime cannot be in the past" });
-      }
-
       if (capacity !== undefined) {
-        if (capacity !== null) {
-          const c = Number(capacity);
-          if (!Number.isInteger(c) || c <= 0) return res.status(400).json({ error: "capacity must be a positive integer or null" });
-          const numGuests = (current.guests ? current.guests.length : 0);
-          if (c < numGuests) return res.status(400).json({ error: "capacity cannot be below current number of guests" });
-          patch.capacity = c;
-        } else {
+        if (capacity === null) {
           patch.capacity = null;
+        } else {
+          const c = Number(capacity);
+          if (!Number.isInteger(c) || c <= 0) {
+            return res
+              .status(400)
+              .json({ error: "capacity must be a positive integer or null" });
+          }
+          const numGuests = Array.isArray(current.guests) ? current.guests.length : 0;
+          if (c < numGuests) {
+            return res
+              .status(400)
+              .json({ error: "capacity cannot be below current number of guests" });
+          }
+          patch.capacity = c;
         }
       }
 
+      if (wantsToSetPublished) {
+        if (published !== true) {
+          return res
+            .status(400)
+            .json({ error: "published can only be set to true" });
+        }
+        patch.published = true;
+      }
+
+      if (wantsToSetPoints) {
+        const total = Number(points);
+        if (!Number.isInteger(total) || total <= 0) {
+          return res.status(400).json({ error: "points must be a positive integer" });
+        }
+        const alreadyAwarded = Number(current.pointsAwarded ?? 0);
+        const newRemain = total - alreadyAwarded;
+        if (newRemain < 0) {
+          return res
+            .status(400)
+            .json({ error: "points reduction would make remaining negative" });
+        }
+        patch.pointsRemain = newRemain;
+      }
+
+      if (patch.startTime !== undefined || patch.endTime !== undefined) {
+        const effStart = patch.startTime ?? new Date(current.startTime);
+        const effEnd = patch.endTime ?? new Date(current.endTime);
+        if (effEnd <= effStart) {
+          return res.status(400).json({ error: "endTime must be after startTime" });
+        }
+        if (
+          (patch.startTime && effStart < now) ||
+          (patch.endTime && effEnd < now)
+        ) {
+          return res
+            .status(400)
+            .json({ error: "startTime/endTime cannot be in the past" });
+        }
+      }
+
+      const isEditingPreStartField =
+        patch.name !== undefined ||
+        patch.description !== undefined ||
+        patch.location !== undefined ||
+        patch.startTime !== undefined ||
+        patch.capacity !== undefined;
+
+      if (hasStarted && isEditingPreStartField) {
+        return res.status(400).json({
+          error:
+            "cannot update name/description/location/startTime/capacity after event has started",
+        });
+      }
+      if (hasEnded && patch.endTime !== undefined) {
+        return res
+          .status(400)
+          .json({ error: "cannot update endTime after event has ended" });
+      }
+
+      if (Object.keys(patch).length === 0) {
+        return res.status(200).json({
+          id: current.id,
+          name: current.name,
+          location: current.location,
+        });
+      }
+
       const updated = await eventsService.updateEvent(id, patch);
-      return res.status(200).json({
+
+      const out = {
         id: updated.id,
         name: updated.name,
         location: updated.location,
-        startTime: updated.startTime,
-        endTime: updated.endTime,
-        capacity: updated.capacity ?? null,
-        ...(points !== undefined ? { pointsRemain: updated.pointsRemain } : {}),
-        ...(updated.pointsAwarded !== undefined ? { pointsAwarded: updated.pointsAwarded } : {}),
-        ...(published !== undefined ? { published: updated.published } : {})
-      });
+      };
+      if (patch.startTime !== undefined) out.startTime = updated.startTime;
+      if (patch.endTime !== undefined) out.endTime = updated.endTime;
+      if (patch.capacity !== undefined) out.capacity = updated.capacity ?? null;
+      if (patch.pointsRemain !== undefined) out.pointsRemain = updated.pointsRemain;
+      if (patch.published !== undefined) out.published = updated.published;
+
+      return res.status(200).json(out);
     } catch (err) {
       return res.status(400).json({ error: err.message });
     }
-  }
-};
+  },
+}
 
 module.exports = eventController;

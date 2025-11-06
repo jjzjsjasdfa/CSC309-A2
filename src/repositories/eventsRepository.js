@@ -111,8 +111,16 @@ const eventsRepository = {
   },
 
   async updateEvent(id, patch) {
-    return eventsRepository.updateEvent(id, patch);
-  }
+    return prisma.event.update({
+      where: { id },
+      data: patch,
+      include: {
+        _count: { select: { guests: true } },
+        organizers: true,
+        guests: true
+      }
+    });
+   }
 };
 
 module.exports = eventsRepository;
