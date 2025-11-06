@@ -68,22 +68,23 @@ const eventsRepository = {
   },
 
   async findById(id){
-  return prisma.event.findUnique({
-    where: { id },
-    include: {
-      organizers: true,
-      guests: true
-    }
-  })
-},
+    return prisma.event.findUnique({
+      where: {id},
+      include: {
+        organizers: true,
+        guests: true,
+      _count: {select: {guests: true}}
+      }
+    })
+  },
 
   async deleteById(id) {
-    return prisma.event.delete({ where: { id } });
+    return prisma.event.delete({where: {id}});
   },
 
   async deleteOrganizer(uid,eid){
     return prisma.event.update({
-      where: { id: eid },
+      where: {id: eid},
       data: {
         organizers: {
         disconnect: { id: uid }, 
@@ -107,20 +108,27 @@ const eventsRepository = {
   },
   
   async delete(id) {
-    return prisma.event.delete({ where: { id } });
+    return prisma.event.delete({where: {id}});
   },
 
   async updateEvent(id, patch) {
     return prisma.event.update({
-      where: { id },
+      where: {id},
       data: patch,
       include: {
-        _count: { select: { guests: true } },
+        _count: {select: {guests: true}},
         organizers: true,
         guests: true
       }
     });
-   }
+   },
+
+  async deleteGuest(uid, eid) {
+    return prisma.event.update({
+      where: {id: eid},
+      data: {guests: {disconnect: {id: uid}}},
+    });
+  }
 };
 
 module.exports = eventsRepository;

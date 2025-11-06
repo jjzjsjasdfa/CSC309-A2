@@ -7,7 +7,7 @@ const eventController = {
   async register(req, res) {
     try {
       const { name: n, description: d, location: l, startTime: sT, endTime: eT, points: p, capacity: c} = req.body;
-      
+
       const now = Date.now();
       const s = new Date(sT);
       const e = new Date(eT);
@@ -138,6 +138,10 @@ const eventController = {
 
       if(new Date(event.endTime) < new Date()){
         return res.status(410).json({ message: "event has ended" });
+      }
+
+      if (event.guests?.some(g => g.id === user.id)) {
+        return res.status(400).json({ error: "user is already a guest of this event" });
       }
 
       for (let guest of event.guests) {
@@ -372,6 +376,79 @@ const eventController = {
       if (patch.published !== undefined) out.published = updated.published;
 
       return res.status(200).json(out);
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+  },
+
+  async registerGuest(req, res) {
+    try {
+      const eid = Number(req.params.eventId);
+      if (!Number.isInteger(eid) || eid <= 0) return res.status(404).json({ message: "no such event" });
+
+      const { utorid } = req.body || {};
+      if (!utorid) return res.status(400).json({ error: "utorid is required" });
+
+      const event = await eventsService.getEventById(eid);
+      if (!event) return res.status(404).json({ message: "no such event" });
+
+      const role = req.user?.role;
+      const isMgr = role === "manager" || role === "superuser";
+      const isOrganizerCaller = await eventsService.checkOrganizer(req.user?.id, eid);
+      if (!isMgr && isOrganizerCaller && !event.published) {
+        return res.status(404).json({ message: "event not found" });
+      }
+
+      const now = new Date();
+      const numGuestsNow = event._count?.guests ?? (event.guests ? event.guests.length : 0);
+      if (new Date(event.endTime) <= now || (event.capacity != null && numGuestsNow >= event.capacity)) {
+        return res.status(410).json({ message: "event is full or has ended" });
+      }
+
+      const user = await userService.getUserByUtorid(utorid);
+      if (!user) return res.status(404).json({ message: "no such user of Utorid" });
+
+      if (event.organizers?.some(o => o.id === user.id)) {
+        return res.status(400).json({ error: "user is organizer; remove organizer first" });
+      }
+
+      if (event.guests?.some(g => g.id === user.id)) {
+        return res.status(400).json({ error: "user is already a guest" });
+      }
+
+      await eventsService.addGuest(user.id, eid);
+      const updated = await eventsService.getEventById(eid);
+      const numGuests = updated._count?.guests ?? (updated.guests ? updated.guests.length : numGuestsNow + 1);
+
+      const body = {
+        id: updated.id,
+        name: updated.name,
+        location: updated.location,
+        guestAdded: { id: user.id, utorid: user.utorid, name: user.name },
+        numGuests
+      };
+
+      return res.status(200).json(body);
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+  },
+
+  async kickGuest(req, res) {
+    try {
+      const eid = Number(req.params.eventId);
+      const uid = Number(req.params.userId);
+      if (!Number.isInteger(eid) || eid <= 0) return res.status(404).json({ message: "no such event" });
+
+      const event = await eventsService.getEventById(eid);
+      if (!event) return res.status(404).json({ message: "no such event" });
+
+      if (!event.guests?.some(g => g.id === uid)) {
+        return res.status(404).json({ message: "guest not found" });
+      }
+
+      await eventsService.deleteGuest(uid, eid);
+      return res.status(204).send();
     } catch (err) {
       return res.status(400).json({ error: err.message });
     }

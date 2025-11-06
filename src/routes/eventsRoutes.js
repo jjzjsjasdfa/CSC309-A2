@@ -62,4 +62,22 @@ router.route("/:eventId")
     eventsController.updateEvent
 )
 
+router.route("/:eventId/guests")
+.post(
+    authenticateToken,
+    organizerAuthorization(["manager", "superuser"]),
+    eventsController.registerGuest
+)
+
+router.route("/:eventId/guests/:userId")
+.delete(
+    authenticateToken,
+    authorization(["manager", "superuser"]),
+    eventsController.kickGuest
+)
+
+router.route("/:eventId/guests/me")
+.post()
+.delete()
+
 module.exports = router;
