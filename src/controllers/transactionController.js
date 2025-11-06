@@ -223,9 +223,11 @@ const transactionController = {
     },
 
   async processRedemption(req, res) {
+      const user = await userRepository.findById(req.user.id);
+
       const { processed } = req.body;
-      if(processed === undefined || typeof processed !== "boolean"){
-        return res.status(400).json({ error: "processed should be a boolean" });
+      if(processed === undefined || typeof processed !== "boolean" || processed !== true){
+        return res.status(400).json({ error: "processed can only be true" });
       }
 
       const transactionId = parseInt(req.params.transactionId, 10);
@@ -239,7 +241,15 @@ const transactionController = {
         return res.status(400).json({ error: "transaction is already processed" });
       }
 
-      const updatedTransaction = await transactionService.updateTransaction({ id: transactionId }, { processedBy: req.user.id });
+      // update transaction
+      const updatedTransaction = await transactionService.updateTransaction({ id: transactionId }, { processedBy: user.utorid });
+
+      // remove the points
+      const updatedUser = await userRepository.updateUserByUtorid(transaction.utorid, { points: { decrement: transaction.amount } });
+      if(!updatedUser){
+        return res.status(404).json({ error: "user not found" });
+      }
+
       return res.status(200).json({
         id: updatedTransaction.id,
         utorid: updatedTransaction.utorid,

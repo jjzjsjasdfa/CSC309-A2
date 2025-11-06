@@ -7,10 +7,10 @@ const {authenticateToken, authorization,validatePayload,
 } = require("../middleware/middleware");
 
 router.patch(
-  "/transactions/:transactionId/processed",
+  "/:transactionId/processed",
   authenticateToken,
   authorization(["cashier", "manager", "superuser"]),
-  validatePayload({ required: ["process"] }, "body"),
+  validatePayload({ required: ["processed"] }, "body"),
   transactionController.processRedemption
 )
 

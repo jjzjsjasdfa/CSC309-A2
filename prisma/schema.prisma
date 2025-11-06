@@ -63,7 +63,7 @@ model Transaction {
   amount      Int?
   relatedId   Int?
   createdBy   String
-  processedBy Boolean?
+  processedBy String?
 }
 
 model Promotion {
