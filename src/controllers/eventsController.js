@@ -402,8 +402,12 @@ const eventController = {
 
       const now = new Date();
       const numGuestsNow = event._count?.guests ?? (event.guests ? event.guests.length : 0);
-      if (new Date(event.endTime) <= now || (event.capacity != null && numGuestsNow >= event.capacity)) {
-        return res.status(410).json({ message: "event is full or has ended" });
+
+      if (new Date(event.endTime) <= now) {
+        return res.status(410).json({ message: "Event has ended." });
+      }
+      if (event.capacity != null && numGuestsNow >= event.capacity) {
+        return res.status(410).json({ message: "Event is at full capacity." });
       }
 
       const user = await userService.getUserByUtorid(utorid);
@@ -429,7 +433,7 @@ const eventController = {
         numGuests
       };
 
-      return res.status(200).json(body);
+      return res.status(201).json(body);
     } catch (err) {
       return res.status(400).json({ error: err.message });
     }
