@@ -49,6 +49,19 @@ const transactionRepository = {
         take: limit,
       });
     }
+  },
+
+  async getTransactionById(id){
+    return await prisma.transaction.findUnique({
+      where: { id }
+    });
+  },
+
+  async updateTransaction(where, data){
+    return await prisma.transaction.update({
+      where: where,
+      data: data
+    });
   }
 
 }

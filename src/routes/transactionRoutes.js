@@ -6,7 +6,13 @@ const { validateTransactionPayloads } = require("../middleware/transactionMiddle
 const {authenticateToken, authorization,validatePayload,
 } = require("../middleware/middleware");
 
-
+router.patch(
+  "/transactions/:transactionId/processed",
+  authenticateToken,
+  authorization(["cashier", "manager", "superuser"]),
+  validatePayload({ required: ["process"] }, "body"),
+  transactionController.processRedemption
+)
 
 router.route("/")
   .post(

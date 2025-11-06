@@ -51,18 +51,19 @@ model User {
 }
 
 model Transaction {
-  id         Int             @id @default(autoincrement())
-  type       TransactionType
-  utorid     String
-  user       User            @relation(fields: [utorid], references: [utorid])
-  spent      Float?
-  promotions Promotion[]     @relation("TransactionPromotion")
-  earned     Int?
-  remark     String?
-  suspicious Boolean         @default(false)
-  amount     Int?
-  relatedId  Int?
-  createdBy  String
+  id          Int             @id @default(autoincrement())
+  type        TransactionType
+  utorid      String
+  user        User            @relation(fields: [utorid], references: [utorid])
+  spent       Float?
+  promotions  Promotion[]     @relation("TransactionPromotion")
+  earned      Int?
+  remark      String?
+  suspicious  Boolean         @default(false)
+  amount      Int?
+  relatedId   Int?
+  createdBy   String
+  processedBy Boolean?
 }
 
 model Promotion {

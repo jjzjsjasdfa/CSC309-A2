@@ -4,6 +4,24 @@ const multer = require("multer");
 const upload = multer({ dest: 'uploads/avatars' });
 const { authenticateToken, authorization, validatePayload, verifyUserId, debug } = require('../middleware/middleware');
 const userController = require("../controllers/userController");
+const transactionController = require("../controllers/transactionController");
+
+
+router.route("/me/transactions")
+  .post(
+    authenticateToken,
+    authorization(["regular", "cashier", "manager", "superuser"]),
+    validatePayload({ required: ["type", "amount"], optional: ["remark"] }, "body"),
+    userController.redeemPoints
+  )
+  .get(
+    authenticateToken,
+    authorization(["regular", "cashier", "manager", "superuser"]),
+    validatePayload(
+      { optional: ["type", "relatedId", "promotionId", "amount", "operator", "page", "limit"] },
+      "query"),
+    userController.getMyTransactions
+  )
 
 router.patch(
   "/me/password",
@@ -27,6 +45,14 @@ router.route("/me")
     validatePayload({}, "query"),
     userController.getMyself
   );
+
+router.post(
+  "/:userId/transactions",
+  authenticateToken,
+  authorization(["regular", "cashier", "manager", "superuser"]),
+  validatePayload({ required: ["type", "amount"], optional: ["remark"] }, "body"),
+  userController.transferPoints
+)
 
 router.route("/:userId")
   .get(

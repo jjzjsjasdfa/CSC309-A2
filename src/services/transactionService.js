@@ -20,6 +20,22 @@ const transactionService = {
 
     async getTransactionsWithSkipAndLimitAndInclude(where, skip, limit, include){
         return await transactionRepository.getTransactionsWithSkipAndLimitAndInclude(where, skip, limit, include);
+    },
+
+    async createTransfer(data){
+        return await transactionRepository.createTransaction(data, false);
+    },
+
+    async createRedemption(data){
+        return await transactionRepository.createTransaction(data, false);
+    },
+
+    async findById(id){
+        return await transactionRepository.getTransactionById(id);
+    },
+
+    async updateTransaction(where, data){
+        return await transactionRepository.updateTransaction(where, data);
     }
 }
 

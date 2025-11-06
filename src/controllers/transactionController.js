@@ -3,6 +3,7 @@ const userService = require("../services/userService");
 const userRepository = require("../repositories/userRepository");
 const promotionRepository = require("../repositories/promotionRepository");
 const promotionService = require("../services/promotionService");
+const transactionRepository = require("../repositories/transactionRepository");
 
 const transactionController = {
     async createTransaction(req, res) {
@@ -73,7 +74,13 @@ const transactionController = {
                   if (promotion.rate != null) earned += Math.round(spent * promotion.rate * 100);
 
                   // update the table
+                  console.log(`PromotionId: ${promotion.id}`);
                   await promotionService.usePromotion(transactionUser.id, promotion.id);
+                }
+
+                // promotion is not used
+                if(promotion.minSpending !== undefined && spent !== undefined && spent < promotion.minSpending){
+                  return res.status(400).json({ error: "spent is less than the minimum spending" });
                 }
             }
 
@@ -145,6 +152,7 @@ const transactionController = {
       let where = {};
 
       if(req.query.amount !== undefined && req.query.operator !== undefined){
+        where["amount"] = {};
         where["amount"][req.query.operator] = parseInt(req.query.amount, 10);
       }
 
@@ -165,8 +173,7 @@ const transactionController = {
               where["promotions"]["some"] = { id: parseInt(req.query[key], 10) };
               break;
             case "relatedId":
-            case "amount":
-              where[key] = parseInt(req.query[key], 10);
+              where["relatedId"] = parseInt(req.query[key], 10);
               break;
             case "page":
               page = parseInt(req.query[key], 10);
@@ -214,6 +221,34 @@ const transactionController = {
         results: transactions,
       });
     },
+
+  async processRedemption(req, res) {
+      const { processed } = req.body;
+      if(processed === undefined || typeof processed !== "boolean"){
+        return res.status(400).json({ error: "processed should be a boolean" });
+      }
+
+      const transactionId = parseInt(req.params.transactionId, 10);
+
+      const transaction = await transactionService.findById(transactionId);
+      if(transaction === undefined){
+        return res.status(404).json({ error: "transaction not found" });
+      }else if(transaction.type !== "redemption"){
+        return res.status(400).json({ error: "transaction is not a redemption" });
+      }else if(transaction.processedBy !== null){
+        return res.status(400).json({ error: "transaction is already processed" });
+      }
+
+      const updatedTransaction = await transactionService.updateTransaction({ id: transactionId }, { processedBy: req.user.id });
+      return res.status(200).json({
+        id: updatedTransaction.id,
+        utorid: updatedTransaction.utorid,
+        type: updatedTransaction.type,
+        processedBy: updatedTransaction.processedBy,
+        remark: updatedTransaction.remark,
+        createdBy: updatedTransaction.createdBy,
+      })
+  }
 }
 
 module.exports = transactionController;
