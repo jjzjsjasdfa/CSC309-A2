@@ -65,6 +65,10 @@ function validateTypeAndValue(req, res, reqField){
       case "suspicious":
       case "verified":
       case "activated":
+      case "started":
+      case "ended":
+      case "showFull":
+      case "published":
         if (typeof value === "boolean") break;
         if (!/^(true|false)$/.test(value)) {
           return res.status(400).json({ error: `${key} field should be boolean` });
@@ -123,7 +127,7 @@ function validateTypeAndValue(req, res, reqField){
 
       case "amount":
         if (!/^-?\d*.\d*?$/.test(value)) {
-          return res.status(400).json({ error: `${key} should be an integer`});
+          return res.status(400).json({ error: `${key} should be a number`});
         }
         break;
 

@@ -3,7 +3,6 @@ const router = express.Router();
 const eventsController = require("../controllers/eventsController");
 
 const { authenticateToken, authorization,organizerAuthorization, validatePayload, verifyUserId, debug } = require('../middleware/middleware');
-const eventController = require("../controllers/eventsController");
 
 router.route("/")
 .post(
@@ -21,6 +20,15 @@ router.route("/")
         optional: ["name", "location", "started", "ended", "showFull", "page", "limit", "published"]
     }, "query"),
     eventsController.getEvents
+)
+
+router.post(
+  "/:eventId/transactions",
+  authenticateToken,
+  validatePayload({
+    required: ["type", "amount"], optional: ["utorid"]
+  }, "body"),
+  eventsController.createEventTransaction
 )
 
 router.route("/:eventId/organizers")
@@ -51,7 +59,7 @@ router.route("/:eventId")
 .patch(
     authenticateToken,
     organizerAuthorization(["manager", "superuser"]),
-    eventController.updateEvent
+    eventsController.updateEvent
 )
 
 module.exports = router;

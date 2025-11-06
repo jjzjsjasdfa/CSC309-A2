@@ -30,6 +30,10 @@ const transactionService = {
         return await transactionRepository.createTransaction(data, false);
     },
 
+    async createEventTransaction(data){
+        return await transactionRepository.createTransaction(data, false);
+    },
+
     async findById(id){
         return await transactionRepository.getTransactionById(id);
     },
