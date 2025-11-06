@@ -174,19 +174,32 @@ const userController = {
     updateData.verified = true;
 
     const updatedUser = await userService.updateUserById(req.user.id, updateData);
-    return res.status(200).json({
+    const response = {
       id: updatedUser.id,
       utorid: updatedUser.utorid,
       name: updatedUser.name,
       email: updatedUser.email,
-      birthday: updatedUser.birthday,
       role: updatedUser.role,
       points: updatedUser.points,
       createdAt: updatedUser.createdAt,
       lastLogin: updatedUser.lastLogin,
       verified: updatedUser.verified,
       avatarUrl: updatedUser.avatarUrl
-    });
+    };
+
+    const birthday = updatedUser.birthday;
+
+    let year = birthday.getFullYear().toString();
+    year = "0".repeat(4 - year.length) + year;
+
+    let month = (birthday.getMonth() + 1).toString();
+    month = "0".repeat(2 - month.length) + month;
+
+    let day = birthday.getDate().toString();
+    day = "0".repeat(2 - day.length) + day;
+
+    response.birthday = year + '-' + month + '-' + day;
+    return res.status(200).json(response);
   },
 
   async getMyself(req, res){
