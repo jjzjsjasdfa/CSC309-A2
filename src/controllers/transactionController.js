@@ -74,7 +74,6 @@ const transactionController = {
                   if (promotion.rate != null) earned += Math.round(spent * promotion.rate * 100);
 
                   // update the table
-                  console.log(`PromotionId: ${promotion.id}`);
                   await promotionService.usePromotion(transactionUser.id, promotion.id);
                 }
 
@@ -155,6 +154,26 @@ const transactionController = {
       if(req.query.amount !== undefined && req.query.operator !== undefined){
         where["amount"] = {};
         where["amount"][req.query.operator] = parseInt(req.query.amount, 10);
+      }
+
+      if (typeof req.query.name === "string" && req.query.name !== "") {
+        const nameQ = req.query.name;
+        const prisma = require("../../prisma/prismaClient");
+        const matches = await prisma.user.findMany({
+        where: {
+            OR: [
+            { name:   { contains: nameQ, mode: "insensitive" } },
+            { utorid: { contains: nameQ, mode: "insensitive" } },
+            ],
+        },
+        select: { utorid: true }
+        });
+
+        if (matches.length > 0) {
+            where.utorid = { in: matches.map(u => u.utorid) };
+        } else {
+            where.utorid = { contains: nameQ, mode: "insensitive" };
+        }
       }
 
       for(const key in req.query){
@@ -259,7 +278,52 @@ const transactionController = {
         remark: updatedTransaction.remark,
         createdBy: updatedTransaction.createdBy,
       })
-  }
+  },
+
+    async getTransactionById(req, res) {
+        const id = parseInt(req.params.id, 10);
+        if (Number.isNaN(id)) return res.status(400).json({ error: "invalid id" });
+
+        const transaction = await transactionService.getById(id);
+        if (!transaction) return res.status(404).json({ error: "not found" });
+
+        return res.status(200).json({ id: transaction.id, utorid: transaction.utorid, type: transaction.type,
+            spent: transaction.spent ?? undefined, amount: transaction.amount ?? transaction.earned ?? 0,
+            promotionIds: transaction.promotions?.map(p => p.id) ?? [], suspicious: transaction.suspicious,
+            remark: transaction.remark ?? "", createdBy: transaction.createdBy
+        });
+    },
+
+    async setSuspicious(req, res) {
+        const id = parseInt(req.params.id, 10);
+        if (Number.isNaN(id)) return res.status(400).json({ error: "invalid id" });
+            const { suspicious } = req.body;
+        if (typeof suspicious !== "boolean") return res.status(400).json({ error: "suspicious type error" });
+
+        const transaction = await transactionService.getById(id);
+        if (!transaction) return res.status(404).json({ error: "not found" });
+        if (transaction.suspicious === suspicious) {
+            return res.status(200).json({ ...transaction, promotionIds: transaction.promotions?.map(p => p.id) ?? [] });
+        }
+
+        const updated = await transactionService.updateSuspicious(id, suspicious);
+
+        const base = transaction.amount ?? transaction.earned ?? 0;
+        let delta;
+        if (suspicious) {
+            delta = -base;
+        } else {
+            delta = base;
+        }
+
+        await userRepository.updateUserByUtorid(transaction.utorid, { points: { increment: delta } });
+
+        return res.status(200).json({ id: updated.id, utorid: updated.utorid, type: updated.type, spent: updated.spent ?? undefined,
+            amount: updated.amount ?? updated.earned ?? 0, promotionIds: updated.promotions?.map(p => p.id) ?? [],
+            suspicious: updated.suspicious, remark: updated.remark ?? "", createdBy: updated.createdBy
+        });
+    }
+
 }
 
 module.exports = transactionController;

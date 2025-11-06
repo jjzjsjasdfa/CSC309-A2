@@ -1,5 +1,5 @@
 const transactionRepository = require("../repositories/transactionRepository");
-
+const prisma = require("../../prisma/prismaClient");
 
 const transactionService = {
     async createPurchaseWithInclude(transactionData, includePromotions) {
@@ -36,7 +36,17 @@ const transactionService = {
 
     async updateTransaction(where, data){
         return await transactionRepository.updateTransaction(where, data);
-    }
+    },
+
+    async updateSuspicious(id, suspicious) {
+        return await prisma.transaction.update({ where: { id }, data: { suspicious },
+            include: { promotions: true }, });
+    },
+
+    async getById(id) {
+        return await prisma.transaction.findUnique({ where: { id }, include: { promotions: true },});
+    },
+
 }
 
 
