@@ -2,7 +2,8 @@ const express = require("express");
 const router = express.Router();
 const eventsController = require("../controllers/eventsController");
 
-const { authenticateToken, authorization, validatePayload, verifyUserId, debug } = require('../middleware/middleware');
+const { authenticateToken, authorization,organizerAuthorization, validatePayload, verifyUserId, debug } = require('../middleware/middleware');
+const eventController = require("../controllers/eventsController");
 
 router.route("/")
 .post(
@@ -21,6 +22,54 @@ router.route("/")
     }, "query"),
     eventsController.getEvents
 )
-    
+
+router.route("/:eventId/organizers")
+.post(
+    authenticateToken,            
+    authorization(["manager", "superuser"]),  
+    validatePayload({ 
+        required: ["utorid"],
+    }, "body"),
+    eventsController.organizeEvent
+)
+
+router.route("/:eventId/organizers/:userId")
+.delete(
+    authenticateToken,            
+    authorization(["manager", "superuser"]),
+    eventsController.kickOrganizer
+)
+
+router.route("/:eventId")
+.delete(
+    authenticateToken, 
+    authorization(["manager", "superuser"]),
+    eventsController.deleteEvent)
+.get(authenticateToken, 
+    authorization(["regular","cashier","manager", "superuser"]),
+    eventsController.getEvent)
+.patch(
+    authenticateToken,
+    organizerAuthorization(["manager", "superuser"]),
+    eventController.updateEvent
+)
+
+router.route("/:eventId/guests")
+.post(
+    authenticateToken,
+    organizerAuthorization(["manager", "superuser"]),
+    eventsController.registerGuest
+)
+
+router.route("/:eventId/guests/:userId")
+.delete(
+    authenticateToken,
+    authorization(["manager", "superuser"]),
+    eventsController.kickGuest
+)
+
+router.route("/:eventId/guests/me")
+.post()
+.delete()
 
 module.exports = router;

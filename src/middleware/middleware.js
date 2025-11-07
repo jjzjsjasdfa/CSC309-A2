@@ -1,6 +1,7 @@
 const SECRET_KEY = process.env.JWT_SECRET;
 const jwt = require('jsonwebtoken');
 const userService = require("../services/userService");
+const eventsService = require("../services/eventsService");
 
 
 function validateTypeAndValue(req, res, reqField){
@@ -108,20 +109,6 @@ function validateTypeAndValue(req, res, reqField){
           return res.status(400).json({ error: `${key} field should be positive integer` });
         }
         break;
-
-      case "startTime":
-        if (new Date(value).getTime() < Date.now()){
-          return res.status(400).json({ error: "startTime must be after present" });
-        }
-        break;
-      case "endTime":
-        if (new Date(value).getTime() < Date.now()){
-          return res.status(400).json({ error: "endTime must be after present" });
-        }
-        if (new Date(value).getTime() <= new Date(req.body.startTime).getTime()){
-          return res.status(400).json({ error: "endTime must be after startTime" });
-        }
-        break;
       case "points":
         if (!(typeof value === 'string' && /^[0-9]+$/.test(value)) && !(typeof value === 'number' && value > 0)){
           return res.status(400).json({ error: `${key} field should be positive integer` });
@@ -155,6 +142,29 @@ function validateTypeAndValue(req, res, reqField){
     }
   }
   return null;
+}
+
+function organizerAuthorization(allowedRoles) {
+  return async (req, res, next) => {
+    try {
+      if (!req.user) return res.status(403).json({ error: "Operation is not allowed on this user role" });
+
+      if (allowedRoles.includes(req.user.role)) return next();
+
+      const eid = Number(req.params.eventId);
+      if (!Number.isInteger(eid)) return res.status(404).json({ message: "no such event" });
+
+      const event = await eventsService.getEventById(eid);
+      if (!event) return res.status(404).json({ message: "no such event" });
+
+      const isOrganizer = await eventsService.checkOrganizer(req.user.id, eid);
+      if (!isOrganizer) return res.status(403).json({ error: "Operation is not allowed on this user role" });
+
+      return next();
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+  };
 }
 
 // JWT authentication middleware from week 7 code
@@ -241,4 +251,4 @@ async function debug(req, res, next){
   next();
 }
 
-module.exports = { authenticateToken, authorization, validatePayload, verifyUserId, debug };
+module.exports = {authenticateToken, authorization, organizerAuthorization, validatePayload, verifyUserId, debug};
