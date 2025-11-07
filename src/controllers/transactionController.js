@@ -276,6 +276,7 @@ const transactionController = {
         utorid: updatedTransaction.utorid,
         type: updatedTransaction.type,
         processedBy: updatedTransaction.processedBy,
+        redeemed: transaction.amount,
         remark: updatedTransaction.remark,
         createdBy: updatedTransaction.createdBy,
       })
