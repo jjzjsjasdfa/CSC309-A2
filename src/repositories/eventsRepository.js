@@ -73,7 +73,7 @@ const eventsRepository = {
       include: {
         organizers: true,
         guests: true,
-      _count: {select: {guests: true}}
+        _count: {select: {guests: true}}
       }
     })
   },

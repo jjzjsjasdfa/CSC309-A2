@@ -64,13 +64,6 @@ router.route("/:eventId")
     eventsController.updateEvent
 )
 
-router.route("/:eventId/guests")
-.post(
-    authenticateToken,
-    organizerAuthorization(["manager", "superuser"]),
-    eventsController.registerGuest
-)
-
 router.route("/:eventId/guests/me")
   .post(
     authenticateToken,
@@ -86,6 +79,14 @@ router.route("/:eventId/guests/:userId")
     authenticateToken,
     authorization(["manager", "superuser"]),
     eventsController.kickGuest
+)
+
+router.route("/:eventId/guests")
+.post(
+    authenticateToken,
+    organizerAuthorization(["manager", "superuser"]),
+    validatePayload({ required: ["utorid"] }, "body"),
+    eventsController.registerGuest
 )
 
 module.exports = router;
