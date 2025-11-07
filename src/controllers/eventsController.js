@@ -421,6 +421,15 @@ const eventController = {
         return res.status(400).json({ error: "user is already a guest" });
       }
 
+      const latestEvent = await eventsService.getEventById(eid);
+      const currentGuests =
+        latestEvent._count?.guests ??
+        (latestEvent.guests ? latestEvent.guests.length : 0);
+
+      if (latestEvent.capacity != null && currentGuests >= latestEvent.capacity) {
+        return res.status(410).json({ message: "Event is at full capacity." });
+      }
+
       await eventsService.addGuest(user.id, eid);
       const updated = await eventsService.getEventById(eid);
       const numGuests = updated._count?.guests ?? (updated.guests ? updated.guests.length : numGuestsNow + 1);
