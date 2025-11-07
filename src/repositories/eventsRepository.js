@@ -128,24 +128,6 @@ const eventsRepository = {
       where: {id: eid},
       data: {guests: {disconnect: {id: uid}}},
     });
-  },
-
-  async addGuestSafely(uid, eid) {
-    return prisma.$transaction(async (tx) => {
-      const ev = await tx.event.findUnique({
-        where: { id: eid },
-        include: { _count: { select: { guests: true } } },
-      });
-      if (!ev) throw new Error("NO_EVENT");
-      if (new Date(ev.endTime) <= new Date()) throw new Error("ENDED");
-      if (ev.capacity != null && ev._count.guests >= ev.capacity) throw new Error("FULL");
-
-      return tx.event.update({
-        where: { id: eid },
-        data: { guests: { connect: { id: uid } } },
-        include: { _count: { select: { guests: true } }, guests: true, organizers: true },
-      });
-    });
   }
 };
 

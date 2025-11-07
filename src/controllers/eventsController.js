@@ -382,8 +382,7 @@ const eventController = {
   async registerGuest(req, res) {
     try {
       const eid = Number(req.params.eventId);
-      if (!Number.isInteger(eid) || eid <= 0)
-        return res.status(404).json({ message: "no such event" });
+      if (!Number.isInteger(eid) || eid <= 0) return res.status(404).json({ message: "no such event" });
 
       const { utorid } = req.body || {};
       if (!utorid) return res.status(400).json({ error: "utorid is required" });
@@ -398,40 +397,49 @@ const eventController = {
         return res.status(404).json({ message: "event not found" });
       }
 
+      const now = new Date();
+      const numGuestsNow = event._count?.guests ?? (event.guests ? event.guests.length : 0);
+
+      if (new Date(event.endTime) <= now) {
+        return res.status(410).json({ message: "Event has ended." });
+      }
+      if (event.capacity != null && numGuestsNow >= event.capacity) {
+        return res.status(410).json({ message: "Event is at full capacity." });
+      }
+
       const user = await userService.getUserByUtorid(utorid);
       if (!user) return res.status(404).json({ message: "no such user of Utorid" });
 
       if (event.organizers?.some(o => o.id === user.id)) {
         return res.status(400).json({ error: "user is organizer; remove organizer first" });
       }
+
       if (event.guests?.some(g => g.id === user.id)) {
         return res.status(400).json({ error: "user is already a guest" });
       }
 
-      let updated;
-      try {
-        updated = await eventsService.addGuestSafely(user.id, eid);
-      } catch (err) {
-        if (err.message === "FULL")
-          return res.status(410).json({ message: "Event is at full capacity." });
-        if (err.message === "ENDED")
-          return res.status(410).json({ message: "Event has ended." });
-        if (err.message === "NO_EVENT")
-          return res.status(404).json({ message: "no such event" });
-        return res.status(400).json({ error: err.message });
+      const latestEvent = await eventsService.getEventById(eid);
+      const currentGuests =
+        latestEvent._count?.guests ??
+        (latestEvent.guests ? latestEvent.guests.length : 0);
+
+      if (latestEvent.capacity != null && currentGuests >= latestEvent.capacity) {
+        return res.status(410).json({ message: "Event is at full capacity." });
       }
 
-      const numGuests =
-        updated._count?.guests ??
-        (updated.guests ? updated.guests.length : 0);
+      await eventsService.addGuest(user.id, eid);
+      const updated = await eventsService.getEventById(eid);
+      const numGuests = updated._count?.guests ?? (updated.guests ? updated.guests.length : numGuestsNow + 1);
 
-      return res.status(201).json({
+      const body = {
         id: updated.id,
         name: updated.name,
         location: updated.location,
         guestAdded: { id: user.id, utorid: user.utorid, name: user.name },
-        numGuests,
-      });
+        numGuests
+      };
+
+      return res.status(201).json(body);
     } catch (err) {
       return res.status(400).json({ error: err.message });
     }
