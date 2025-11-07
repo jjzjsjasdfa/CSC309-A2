@@ -1,6 +1,5 @@
 const eventsService = require("../services/eventsService.js");
 const userService = require("../services/userService.js");
-const transactionsService = require("./transactionController");
 const transactionService = require("../services/transactionService");
 
 const eventController = {
@@ -8,7 +7,6 @@ const eventController = {
     try {
       const { name: n, description: d, location: l, startTime: sT, endTime: eT, points: p, capacity: c} = req.body;
 
-      const now = Date.now();
       const s = new Date(sT);
       const e = new Date(eT);
 
@@ -455,6 +453,7 @@ const eventController = {
   },
 
   async createEventTransaction(req, res){
+    const user = await userService.getUserById(req.user.id);
     const { type, utorid, amount } = req.body;
     let { eventId } = req.params;
     if(isNaN(eventId)){
@@ -465,16 +464,6 @@ const eventController = {
     const event = await eventsService.getEventById(eventId);
     if(!event){
       return res.status(404).json({ message: `event with Id ${eventId} not found` });
-    }
-
-    const organizerIds = event.organizers.map(o => o.id);
-
-    // user role check
-    const user = await userService.getUserById(req.user.id);
-    if(user.role === "regular" || user.role === "cashier"){
-      if(!organizerIds.includes(req.user.id)){
-        return res.status(403).json({ message: "user doesn't have permission to create an event transaction" });
-      }
     }
 
     if(type !== "event"){
@@ -566,6 +555,68 @@ const eventController = {
 
       res.status(201).json(response);
     }
+  },
+
+  async registerMyselfAsGuest(req, res){
+    const user = await userService.getUserById(req.user.id);
+
+    let { eventId } = req.params;
+    if(isNaN(eventId)){
+      return res.status(400).json({ message: "eventId must be a number" });
+    }
+
+    eventId = parseInt(eventId, 10);
+    const event = await eventsService.getEventById(eventId);
+    if(!event){
+      return res.status(404).json({ message: `event with Id ${eventId} not found` });
+    }
+
+    const now = new Date();
+    const numGuestsNow = event._count?.guests ?? (event.guests ? event.guests.length : 0);
+    if (new Date(event.endTime) <= now || (event.capacity != null && numGuestsNow >= event.capacity)) {
+      return res.status(410).json({ message: "event is full or has ended" });
+    }
+
+    if (event.guests?.some(g => g.id === user.id)) {
+      return res.status(400).json({ error: "user is already a guest" });
+    }
+
+    await eventsService.addGuest(user.id, eventId);
+
+    res.status(201).json({
+      id: event.id,
+      name: event.name,
+      location: event.location,
+      guestAdded: { id: user.id, utorid: user.utorid, name: user.name },
+      numGuests: numGuestsNow + 1
+    });
+  },
+
+  async removeMyselfAsGuest(req, res){
+    const user = await userService.getUserById(req.user.id);
+
+    let { eventId } = req.params;
+    if(isNaN(eventId)){
+      return res.status(400).json({ message: "eventId must be a number" });
+    }
+
+    eventId = parseInt(eventId, 10);
+    const event = await eventsService.getEventById(eventId);
+    if(!event){
+      return res.status(404).json({ message: `event with Id ${eventId} not found` });
+    }
+
+    if (!event.guests?.some(g => g.id === user.id)) {
+      return res.status(404).json({ message: "guest not found" });
+    }
+
+    const now = new Date();
+    if(new Date(event.endTime) <= now){
+      return res.status(410).json({ message: "event has ended" });
+    }
+
+    await eventsService.deleteGuest(user.id, eventId);
+    return res.status(204).send();
   }
 }
 

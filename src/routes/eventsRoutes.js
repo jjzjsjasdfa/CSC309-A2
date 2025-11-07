@@ -25,6 +25,7 @@ router.route("/")
 router.post(
   "/:eventId/transactions",
   authenticateToken,
+  organizerAuthorization(["manager", "superuser"]),
   validatePayload({
     required: ["type", "amount"], optional: ["utorid"]
   }, "body"),
@@ -69,15 +70,21 @@ router.route("/:eventId/guests")
     eventsController.registerGuest
 )
 
+router.route("/:eventId/guests/me")
+  .post(
+    authenticateToken,
+    eventsController.registerMyselfAsGuest
+  )
+  .delete(
+    authenticateToken,
+    eventsController.removeMyselfAsGuest
+  )
+
 router.route("/:eventId/guests/:userId")
 .delete(
     authenticateToken,
     authorization(["manager", "superuser"]),
     eventsController.kickGuest
 )
-
-router.route("/:eventId/guests/me")
-.post()
-.delete()
 
 module.exports = router;
