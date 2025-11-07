@@ -60,6 +60,7 @@ router.route("/:eventId")
 .patch(
     authenticateToken,
     organizerAuthorization(["manager", "superuser"]),
+    validatePayload({ optional: ["name", "description", "location", "startTime", "endTime", "capacity", "points", "published"] }, "body"),
     eventsController.updateEvent
 )
 

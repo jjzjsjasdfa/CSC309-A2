@@ -28,6 +28,7 @@ router.patch(
   "/:id",
   authenticateToken,
   authorization(["manager", "superuser"]),
+  validatePayload({ optional: ["name", "description", "type", "startTime", "endTime", "minSpending", "rate", "points"] }, "body"),
   promotionController.update
 );
 
