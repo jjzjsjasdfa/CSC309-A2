@@ -1,20 +1,17 @@
 const eventsService = require("../services/eventsService.js");
 const userService = require("../services/userService.js");
+const transactionService = require("../services/transactionService");
 
 const eventController = {
   async register(req, res) {
     try {
       const { name: n, description: d, location: l, startTime: sT, endTime: eT, points: p, capacity: c} = req.body;
 
-      const now = Date.now();
       const s = new Date(sT);
       const e = new Date(eT);
 
       if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) {
         return res.status(400).json({ error: "Invalid startTime/endTime" });
-      }
-      if (s.getTime() < now) {
-        return res.status(400).json({ error: "startTime must be after present" });
       }
       if (e.getTime() <= s.getTime()) {
         return res.status(400).json({ error: "endTime must be after startTime" });
@@ -466,6 +463,173 @@ const eventController = {
     } catch (err) {
       return res.status(400).json({ error: err.message });
     }
+  },
+
+  async createEventTransaction(req, res){
+    const user = await userService.getUserById(req.user.id);
+    const { type, utorid, amount } = req.body;
+    let { eventId } = req.params;
+    if(isNaN(eventId)){
+      return res.status(400).json({ message: "eventId must be a number" });
+    }
+
+    eventId = parseInt(eventId, 10);
+    const event = await eventsService.getEventById(eventId);
+    if(!event){
+      return res.status(404).json({ message: `event with Id ${eventId} not found` });
+    }
+
+    if(type !== "event"){
+      return res.status(400).json({ message: "type must be 'event'" });
+    }else if(typeof amount !== "number" || amount <= 0){
+      return res.status(400).json({ message: "amount must be a positive number" });
+    }
+
+    // only awarding one guest
+    if(utorid !== undefined){
+      // check if utorid is one of the guests
+      const guestUtorids = event.guests.map(g => g.utorid);
+      if(!guestUtorids.includes(utorid)){
+        return res.status(400).json({ message: `user with utorid ${utorid} not a guest of this event` });
+      }
+
+      // check if amount exceeds remaining points
+      if(amount > event.pointsRemain){
+        return res.status(400).json({ message: "amount exceeds remaining points" });
+      }
+
+      // create transaction
+      let data = {
+        type: "event",
+        utorid,
+        amount,
+        relatedId: eventId,
+        createdBy: user.utorid,
+      };
+      const transaction = await transactionService.createEventTransaction(data);
+
+      // update event
+      let patch = {};
+      patch.pointsRemain = event.pointsRemain - amount;
+      patch.pointsAwarded = event.pointsAwarded + amount;
+      const updatedEvent = await eventsService.updateEvent(eventId, patch);
+
+      // update guest
+      const updatedUser = await userService.updateUserByUtorid(utorid, { points: { increment: amount } });
+
+      res.status(201).json({
+        id: transaction.id,
+        recipient: utorid,
+        awarded: amount,
+        type: "event",
+        relatedId: eventId,
+        createdBy: user.utorid
+      });
+    }
+    // awarding all guests
+    else{
+      // check if amount exceeds remaining points
+      const guests = event.guests;
+      const newAmount = amount * guests.length;
+      if(newAmount > event.pointsRemain){
+        return res.status(400).json({ message: "amount exceeds remaining points to award all guests" });
+      }
+
+      let response = [];
+      for(const g of guests){
+        // create transaction
+        let data = {
+          type: "event",
+          utorid: g.utorid,
+          amount,
+          relatedId: eventId,
+          createdBy: user.utorid,
+        };
+        const transaction = await transactionService.createEventTransaction(data);
+
+        // update event
+        let patch = {};
+        patch.pointsRemain = event.pointsRemain - newAmount;
+        patch.pointsAwarded = event.pointsAwarded + newAmount;
+        const updatedEvent = await eventsService.updateEvent(eventId, patch);
+
+        // update guest
+        const updatedUser = await userService.updateUserByUtorid(g.utorid, { points: { increment: amount } });
+
+        response.push({
+          id: transaction.id,
+          recipient: g.utorid,
+          awarded: amount,
+          type: "event",
+          relatedId: eventId,
+          createdBy: user.utorid
+        });
+      }
+
+      res.status(201).json(response);
+    }
+  },
+
+  async registerMyselfAsGuest(req, res){
+    const user = await userService.getUserById(req.user.id);
+
+    let { eventId } = req.params;
+    if(isNaN(eventId)){
+      return res.status(400).json({ message: "eventId must be a number" });
+    }
+
+    eventId = parseInt(eventId, 10);
+    const event = await eventsService.getEventById(eventId);
+    if(!event){
+      return res.status(404).json({ message: `event with Id ${eventId} not found` });
+    }
+
+    const now = new Date();
+    const numGuestsNow = event._count?.guests ?? (event.guests ? event.guests.length : 0);
+    if (new Date(event.endTime) <= now || (event.capacity != null && numGuestsNow >= event.capacity)) {
+      return res.status(410).json({ message: "event is full or has ended" });
+    }
+
+    if (event.guests?.some(g => g.id === user.id)) {
+      return res.status(400).json({ error: "user is already a guest" });
+    }
+
+    await eventsService.addGuest(user.id, eventId);
+
+    res.status(201).json({
+      id: event.id,
+      name: event.name,
+      location: event.location,
+      guestAdded: { id: user.id, utorid: user.utorid, name: user.name },
+      numGuests: numGuestsNow + 1
+    });
+  },
+
+  async removeMyselfAsGuest(req, res){
+    const user = await userService.getUserById(req.user.id);
+
+    let { eventId } = req.params;
+    if(isNaN(eventId)){
+      return res.status(400).json({ message: "eventId must be a number" });
+    }
+
+    eventId = parseInt(eventId, 10);
+    const event = await eventsService.getEventById(eventId);
+    if(!event){
+      return res.status(404).json({ message: `event with Id ${eventId} not found` });
+    }
+
+    if (!event.guests?.some(g => g.id === user.id)) {
+      return res.status(404).json({ message: "guest not found" });
+    }
+
+    const now = new Date();
+    if(new Date(event.endTime) <= now){
+      return res.status(410).json({ message: "event has ended" });
+    }
+
+    await eventsService.deleteGuest(user.id, eventId);
+    return res.status(204).send();
   }
 }
 
